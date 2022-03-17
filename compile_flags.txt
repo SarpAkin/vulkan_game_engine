@@ -1,0 +1,10 @@
+-std=c++20
+-Igit_modules/glm
+-Ilibs
+-DASIO_STANDALONE
+-Igit_modules/asio/asio/include
+-Igit_modules
+-DIMGUI_ENABLED
+-DLANG_CPP
+-DGLM_FORCE_RADIANS
+-DGLM_FORCE_DEPTH_ZERO_TO_ONE
