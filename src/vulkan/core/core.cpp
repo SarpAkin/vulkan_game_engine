@@ -91,10 +91,14 @@ Core::Core(uint32_t width, uint32_t height, const std::string& app_name)
     vkGetPhysicalDeviceMemoryProperties(m_chosen_gpu, &m_data->mem_properties);
 
     init_allocator();
+    init_frame_data();
+    init_swapchain();
 }
 
 Core::~Core()
 {
+    cleanup_swapchain();
+    cleanup_frame_data();
     cleanup_allocator();
 
     vkDestroyDevice(m_device, nullptr);
@@ -109,7 +113,7 @@ void Core::init_swapchain(VkSwapchainKHR old_swapchain)
             // use vsync present mode
             .set_desired_present_mode(VK_PRESENT_MODE_FIFO_KHR)
             .set_desired_extent(m_width, m_height)
-            .set_old_swapchain(old_swapchain)
+            // .set_old_swapchain(old_swapchain)
             .build()
             .value();
 
@@ -119,6 +123,31 @@ void Core::init_swapchain(VkSwapchainKHR old_swapchain)
     m_swapchain_images       = vkb_swapchain.get_images().value();
 
     // m_data->vkb_swapchain = std::move(vkb_swapchain);
+}
+
+void Core::init_frame_data()
+{
+    m_frame_data.resize(FRAME_OVERLAP, {});
+
+    for (auto& f : m_frame_data)
+    {
+        f.cmd_pool          = create_command_pool(VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
+        f.cmd               = create_command_buffer(f.cmd_pool, VK_COMMAND_BUFFER_LEVEL_PRIMARY);
+        f.render_fence      = create_fence(true);
+        f.present_semaphore = create_semaphore();
+        f.render_semaphore  = create_semaphore();
+    }
+}
+
+void Core::cleanup_frame_data()
+{
+    for (auto& f : m_frame_data)
+    {
+        vkDestroyCommandPool(device(), f.cmd_pool, nullptr);
+        vkDestroyFence(device(), f.render_fence, nullptr);
+        vkDestroySemaphore(device(), f.present_semaphore, nullptr);
+        vkDestroySemaphore(device(), f.render_semaphore, nullptr);
+    }
 }
 
 void Core::cleanup_swapchain()
@@ -169,7 +198,7 @@ void Core::run(std::function<void(FrameArgs)> frame_draw)
     while (m_running)
     {
         handle_input();
-        draw_frame(delta_t,frame_draw);
+        draw_frame(delta_t, frame_draw);
 
         auto timer_end = std::chrono::steady_clock::now();
 
@@ -239,22 +268,10 @@ void Core::handle_input()
     }
 }
 
-void begin_cmd(VkCommandBuffer cmd)
-{
-    VkCommandBufferBeginInfo cmd_begin_info = {};
-    cmd_begin_info.sType                    = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    cmd_begin_info.pNext                    = nullptr;
-
-    cmd_begin_info.pInheritanceInfo = nullptr;
-    cmd_begin_info.flags            = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-
-    VK_CHECK(vkBeginCommandBuffer(cmd, &cmd_begin_info));
-}
-
 void Core::draw_frame(float delta_t, std::function<void(FrameArgs)>& frame_func)
 {
     auto& current_frame     = get_current_frame();
-    const uint64_t time_out = 10'000'000'000;//10 sec
+    const uint64_t time_out = 1'000'000'000; // 10 sec
 
     VK_CHECK(vkWaitForFences(device(), 1, &current_frame.render_fence, true, time_out));
     VK_CHECK(vkResetFences(device(), 1, &current_frame.render_fence));
@@ -262,7 +279,7 @@ void Core::draw_frame(float delta_t, std::function<void(FrameArgs)>& frame_func)
     uint32_t swapchain_image_index;
     VK_CHECK(vkAcquireNextImageKHR(device(), m_swapchain, time_out, current_frame.present_semaphore, nullptr, &swapchain_image_index));
 
-    VkCommandBuffer cmd = nullptr;
+    VkCommandBuffer cmd = current_frame.cmd;
 
     VK_CHECK(vkResetCommandBuffer(cmd, 0));
 
@@ -280,25 +297,111 @@ void Core::draw_frame(float delta_t, std::function<void(FrameArgs)>& frame_func)
 
     VK_CHECK(vkEndCommandBuffer(cmd));
 
-    VkSubmitInfo submit = {};
-    submit.sType        = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    submit.pNext        = nullptr;
-
     VkPipelineStageFlags wait_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 
-    submit.pWaitDstStageMask = &wait_stage;
+    VkSubmitInfo submit = {
+        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
 
-    submit.waitSemaphoreCount = 1;
-    submit.pWaitSemaphores    = &current_frame.present_semaphore;
+        .waitSemaphoreCount = 1,
+        .pWaitSemaphores    = &current_frame.present_semaphore,
+        .pWaitDstStageMask  = &wait_stage,
 
-    submit.signalSemaphoreCount = 1;
-    submit.pSignalSemaphores    = &current_frame.render_semaphore;
+        .commandBufferCount = 1,
+        .pCommandBuffers    = &cmd,
 
-    submit.commandBufferCount = 1;
-    submit.pCommandBuffers    = &cmd;
+        .signalSemaphoreCount = 1,
+        .pSignalSemaphores    = &current_frame.render_semaphore,
+    };
 
     // submit command buffer to the queue and execute it.
     VK_CHECK(vkQueueSubmit(m_graphics_queue, 1, &submit, current_frame.render_fence));
+
+    VkPresentInfoKHR presentInfo = {
+        .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+        .pNext = nullptr,
+
+        .waitSemaphoreCount = 1,
+        .pWaitSemaphores    = &current_frame.render_semaphore,
+
+        .swapchainCount = 1,
+        .pSwapchains    = &m_swapchain,
+
+        .pImageIndices = &swapchain_image_index,
+    };
+
+    VK_CHECK(vkQueuePresentKHR(m_graphics_queue, &presentInfo));
+
+    // last
+    m_frame_index = (m_frame_index + 1) % FRAME_OVERLAP;
+}
+
+void begin_cmd(VkCommandBuffer cmd)
+{
+    VkCommandBufferBeginInfo info = {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+        .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+    };
+
+    VK_CHECK(vkBeginCommandBuffer(cmd, &info));
+}
+
+VkCommandPool Core::create_command_pool(VkCommandPoolCreateFlags flags)
+{
+    VkCommandPoolCreateInfo info = {
+        .sType            = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+        .pNext            = nullptr,
+        .flags            = flags,
+        .queueFamilyIndex = m_graphics_queue_family,
+    };
+
+    VkCommandPool pool;
+
+    VK_CHECK(vkCreateCommandPool(device(), &info, nullptr, &pool));
+
+    return pool;
+}
+
+VkCommandBuffer Core::create_command_buffer(VkCommandPool pool, VkCommandBufferLevel level)
+{
+    VkCommandBufferAllocateInfo info = {
+        .sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+        .pNext              = nullptr,
+        .commandPool        = pool,
+        .level              = level,
+        .commandBufferCount = 1,
+    };
+
+    VkCommandBuffer cmd;
+
+    VK_CHECK(vkAllocateCommandBuffers(device(), &info, &cmd));
+
+    return cmd;
+}
+
+VkFence Core::create_fence(bool signalled)
+{
+    VkFenceCreateInfo info = {
+        .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+        .flags = signalled ? VK_FENCE_CREATE_SIGNALED_BIT : 0u};
+
+    VkFence fence;
+
+    VK_CHECK(vkCreateFence(device(), &info, nullptr, &fence));
+
+    return fence;
+}
+
+VkSemaphore Core::create_semaphore()
+{
+    VkSemaphoreCreateInfo info = {
+        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+    };
+
+    VkSemaphore semaphore;
+
+    VK_CHECK(vkCreateSemaphore(device(), &info, nullptr, &semaphore));
+
+    return semaphore;
 }
 
 } // namespace vke

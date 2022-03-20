@@ -153,7 +153,7 @@ private:
 int main()
 {
     auto builder          = NinjaBuilder("build.ninja");
-    builder.compile_flags = "-std=c++20 -Ilibs";
+    builder.compile_flags = "-std=c++20 -Ilibs -g -O0";
     builder.link_flags    = "-lSDL2 -ldl -lvulkan -lpthread -lfmt";
 
     std::vector<std::string> glsl_files;

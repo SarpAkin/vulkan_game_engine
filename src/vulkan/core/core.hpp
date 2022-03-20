@@ -34,11 +34,15 @@ private:
     void* m_mapped_data      = nullptr;
 };
 
+
+
 class Core
 {
 public:
     Core(uint32_t width, uint32_t height, const std::string& app_name);
     ~Core();
+
+    constexpr static int FRAME_OVERLAP = 2;
 
     //
     inline size_t gpu_allignment() { return 256; }
@@ -51,6 +55,12 @@ public:
     auto height() { return m_height; }
 
     VkAttachmentDescription get_color_attachment();
+
+    //createing stuff
+    VkCommandPool create_command_pool(VkCommandPoolCreateFlags flags);
+    VkCommandBuffer create_command_buffer(VkCommandPool pool,VkCommandBufferLevel level);
+    VkFence create_fence(bool signalled = false);
+    VkSemaphore create_semaphore();
 
     // buffers
     Buffer allocate_buffer(VkBufferUsageFlagBits usage, uint32_t buffer_size, bool host_visible);
@@ -68,6 +78,9 @@ public:
 private:
     void handle_input();
     void draw_frame(float delta_t, std::function<void(FrameArgs)>& frame_func);
+
+    void init_frame_data();
+    void cleanup_frame_data();
 
     void init_swapchain(VkSwapchainKHR old_swapchain = nullptr);
     void cleanup_swapchain();
@@ -88,6 +101,7 @@ private:
 
     struct FrameData
     {
+        VkCommandPool cmd_pool;
         VkCommandBuffer cmd;
         VkSemaphore present_semaphore, render_semaphore;
         VkFence render_fence;
@@ -124,5 +138,7 @@ private:
     bool m_running = true;
     float m_fps    = 0;
 };
+
+void begin_cmd(VkCommandBuffer);
 
 } // namespacze vke

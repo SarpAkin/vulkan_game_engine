@@ -8,9 +8,11 @@ int main()
 {
     fmt::print("hello world\n");
 
-    auto core = vke::Core(500,500,"app");
+    auto core = vke::Core(500, 500, "app");
     
-    std::cin.get();
+    core.run([&](vke::Core::FrameArgs args) {
+        fmt::print("{}\n",args.delta_t);
+    });
 
     return 0;
 }

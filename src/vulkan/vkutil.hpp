@@ -2,14 +2,21 @@
 
 #include "vulkan/vulkan.h"
 
+#include <cassert>
+
 #include <fmt/format.h>
 
-#define VK_CHECK(x)                                             \
-    {                                                           \
-        VkResult result = x;                                    \
-        if (result != VK_SUCCESS)                               \
-        {                                                       \
-            fmt::print(stderr, "[Vulkan Error]: {}\n", result); \
-            assert(0);                                          \
-        }                                                       \
+namespace vke {
+const char* vk_result_string(VkResult res);
+
+#define VK_CHECK(x)                                                               \
+    {                                                                             \
+        VkResult result = x;                                                      \
+        if (result != VK_SUCCESS)                                                 \
+        {                                                                         \
+            fmt::print(stderr, "[Vulkan Error]: {}\n", vk_result_string(result)); \
+            assert(0);                                                            \
+        }                                                                         \
     }
+}
+

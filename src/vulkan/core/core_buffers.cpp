@@ -2,7 +2,6 @@
 
 #include "../vkutil.hpp"
 
-#define VMA_IMPLEMENTATION
 #include <vk_mem_alloc.h>
 
 namespace vke
@@ -23,6 +22,7 @@ void Core::init_allocator()
 
     vmaCreateAllocator(&allocator_create_info, &m_allocator);
 }
+
 
 void Core::cleanup_allocator()
 {

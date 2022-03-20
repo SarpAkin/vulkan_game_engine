@@ -8,6 +8,8 @@ build:util/spirv_embeder.out util/ninja_gen.out
 run:build
 	./out.out
 
+clean:
+	ninja -t clean
 
 
 util/ninja_gen.out:util/ninja_gen.cpp
@@ -16,4 +18,4 @@ util/ninja_gen.out:util/ninja_gen.cpp
 util/spirv_embeder.out:util/spirv_embeder.cpp
 	$(CC) -std=c++20 $< -lfmt -O2 -s -o $@ 
 
-.PHONY:build run
+.PHONY:build run clean
