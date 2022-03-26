@@ -34,7 +34,25 @@ private:
     void* m_mapped_data      = nullptr;
 };
 
+class Image
+{
+    friend Core;
 
+public:
+    VkImage image;
+    VkImageView view;
+
+public:
+    void clean_up();
+    inline void* get_data() { return m_mapped_data; }
+
+private:
+    VmaAllocation m_allocation;
+    Core* m_core        = nullptr;
+    void* m_mapped_data = nullptr;
+};
+
+class RenderPass;
 
 class Core
 {
@@ -56,14 +74,23 @@ public:
 
     VkAttachmentDescription get_color_attachment();
 
-    //createing stuff
+    // createing stuff
     VkCommandPool create_command_pool(VkCommandPoolCreateFlags flags);
-    VkCommandBuffer create_command_buffer(VkCommandPool pool,VkCommandBufferLevel level);
+    VkCommandBuffer create_command_buffer(VkCommandPool pool, VkCommandBufferLevel level);
     VkFence create_fence(bool signalled = false);
     VkSemaphore create_semaphore();
 
     // buffers
     Buffer allocate_buffer(VkBufferUsageFlagBits usage, uint32_t buffer_size, bool host_visible);
+    Image allocate_image(VkFormat format, VkImageUsageFlags usageFlags, uint32_t width, uint32_t height, bool cpu_read_write);
+
+    //
+    auto swapchain_image_format() { return m_swapchain_image_format; }
+    auto swapchain_image_views() { return m_swapchain_image_views; }
+
+    auto allocator() { return m_allocator; }
+
+    inline void set_window_renderpass(RenderPass* renderpass) {m_window_renderpass = renderpass;};
 
     struct FrameArgs
     {
@@ -118,10 +145,10 @@ private:
     std::vector<VkImage> m_swapchain_images;
     std::vector<VkImageView> m_swapchain_image_views;
 
+    RenderPass* m_window_renderpass = nullptr;
+
     SDL_Window* m_window = nullptr;
     uint32_t m_height, m_width;
-
-
 
     // buffers and memory
     VmaAllocator m_allocator = nullptr;
@@ -141,4 +168,4 @@ private:
 
 void begin_cmd(VkCommandBuffer);
 
-} // namespacze vke
+} // namespace vke

@@ -1,5 +1,7 @@
 #include "vkutil.hpp"
 
+#include <vector>
+
 namespace vke
 {
 
@@ -48,6 +50,22 @@ const char* vk_result_string(VkResult res)
         case VK_RESULT_MAX_ENUM: return "VK_RESULT_MAX_ENUM";
     }
     // clang-format on
+}
+
+bool is_depth_format(VkFormat format)
+{
+    const static std::vector<VkFormat> depth_formats = {
+        VK_FORMAT_D16_UNORM,
+        VK_FORMAT_D32_SFLOAT,
+        VK_FORMAT_D16_UNORM_S8_UINT,
+        VK_FORMAT_D24_UNORM_S8_UINT,
+        VK_FORMAT_D32_SFLOAT_S8_UINT,
+    };
+
+    for (auto df : depth_formats)
+        if (df == format) return true;
+
+    return false;
 }
 
 } // namespace vke

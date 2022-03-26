@@ -4,10 +4,11 @@
 **.log
 **.sp
 *.ninja*
-.object_files/**
+.object_files
 .sprv_files
 res/sprv/embeded.cpp
 .vscode
 test/test.cpp
 imgui.ini
 **vgcore.*
+experimental

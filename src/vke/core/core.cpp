@@ -8,6 +8,7 @@
 #include <SDL2/SDL_vulkan.h>
 
 #include "../vkutil.hpp"
+#include "../renderpass.hpp"
 
 namespace vke
 {
@@ -19,9 +20,9 @@ struct Core::Data
     vkb::Swapchain vkb_swapchain;
 };
 
-const uint32_t vk_ver_major = 1;
-const uint32_t vk_ver_minor = 2;
-const uint32_t vk_ver_patch = 0;
+constexpr uint32_t vk_ver_major = 1;
+constexpr uint32_t vk_ver_minor = 2;
+constexpr uint32_t vk_ver_patch = 0;
 
 Core::Core(uint32_t width, uint32_t height, const std::string& app_name)
 {
@@ -158,6 +159,9 @@ void Core::cleanup_swapchain()
     // destroy swapchain resources
     for (auto& iv : m_swapchain_image_views)
         vkDestroyImageView(device(), iv, nullptr);
+
+
+    vkDestroySurfaceKHR(instance(), m_surface, nullptr);
 }
 
 VkAttachmentDescription Core::get_color_attachment()
@@ -216,6 +220,16 @@ void Core::run(std::function<void(FrameArgs)> frame_draw)
         }
 
         timer_begin = timer_end;
+    }
+
+    for(int i = 0;i < FRAME_OVERLAP;++i)
+    {
+        auto& current_frame     = get_current_frame();
+        const uint64_t time_out = 1'000'000'000; // 10 sec
+
+        VK_CHECK(vkWaitForFences(device(), 1, &current_frame.render_fence, true, time_out));
+
+        m_frame_index = (m_frame_index + 1) % FRAME_OVERLAP;
     }
 }
 
@@ -278,6 +292,8 @@ void Core::draw_frame(float delta_t, std::function<void(FrameArgs)>& frame_func)
 
     uint32_t swapchain_image_index;
     VK_CHECK(vkAcquireNextImageKHR(device(), m_swapchain, time_out, current_frame.present_semaphore, nullptr, &swapchain_image_index));
+
+    m_window_renderpass->set_swapchain_image_index(swapchain_image_index);
 
     VkCommandBuffer cmd = current_frame.cmd;
 

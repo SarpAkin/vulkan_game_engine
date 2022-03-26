@@ -6,7 +6,8 @@
 
 #include <fmt/format.h>
 
-namespace vke {
+namespace vke
+{
 const char* vk_result_string(VkResult res);
 
 #define VK_CHECK(x)                                                               \
@@ -18,5 +19,7 @@ const char* vk_result_string(VkResult res);
             assert(0);                                                            \
         }                                                                         \
     }
-}
 
+bool is_depth_format(VkFormat format);
+
+} // namespace vke
