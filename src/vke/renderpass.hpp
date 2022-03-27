@@ -1,8 +1,8 @@
 #pragma once
 
+#include <memory>
 #include <optional>
 #include <vector>
-#include <memory>
 
 #include <vulkan/vulkan.h>
 
@@ -44,6 +44,11 @@ public:
     void end(VkCommandBuffer cmd);
 
     inline void set_swapchain_image_index(uint32_t index) { m_framebuffer_index = index; }
+    inline auto renderpass() { return m_renderpass; }
+    inline void set_attachment_clear_value(uint32_t index, VkClearValue val)
+    {
+        if(m_clear_values.size() > index) m_clear_values[index] = val;
+    }
 
     void clean();
 

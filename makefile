@@ -10,6 +10,7 @@ run:build
 
 clean:
 	ninja -t clean
+	rm -f build.ninja 
 
 
 util/ninja_gen.out:util/ninja_gen.cpp

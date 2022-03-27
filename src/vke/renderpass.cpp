@@ -7,7 +7,7 @@
 
 #include "vkutil.hpp"
 
-#include "../util.hpp"
+#include "util.hpp"
 
 namespace vke
 {
@@ -229,6 +229,24 @@ void RenderPass::begin(VkCommandBuffer cmd)
     };
 
     vkCmdBeginRenderPass(cmd, &rp_begin_info, VK_SUBPASS_CONTENTS_INLINE);
+
+    VkViewport view_port = {
+        .x        = 0.f,
+        .y        = 0.f,
+        .width    = static_cast<float>(m_width),
+        .height   = static_cast<float>(m_height),
+        .minDepth = 0.f,
+        .maxDepth = 1.f,
+    };
+
+    vkCmdSetViewport(cmd, 0, 1, &view_port);
+
+    VkRect2D scissor = {
+        .offset = {0,0},
+        .extent = {m_width,m_height},
+    };
+
+    vkCmdSetScissor(cmd, 0, 1, &scissor);
 }
 
 void RenderPass::next_subpass(VkCommandBuffer cmd)

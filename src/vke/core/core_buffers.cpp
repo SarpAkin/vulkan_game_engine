@@ -102,7 +102,7 @@ Image Core::allocate_image(VkFormat format, VkImageUsageFlags usageFlags, uint32
     vke_image.image        = image;
     vke_image.view         = view;
     vke_image.m_allocation = allocation;
-    vke_image.m_core  = this;
+    vke_image.m_core       = this;
 
     if (host_visible)
     {
@@ -118,11 +118,14 @@ Image Core::allocate_image(VkFormat format, VkImageUsageFlags usageFlags, uint32
 
 void Buffer::clean_up()
 {
+    if (m_mapped_data) vmaUnmapMemory(m_allocator, m_allocation);
     vmaDestroyBuffer(m_allocator, buffer, m_allocation);
 }
 
 void Image::clean_up()
 {
+    if (m_mapped_data) vmaUnmapMemory(m_core->allocator(), m_allocation);
+
     vkDestroyImageView(m_core->device(), view, nullptr);
     vmaDestroyImage(m_core->allocator(), image, m_allocation);
 }

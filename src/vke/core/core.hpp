@@ -26,7 +26,9 @@ public:
 
 public:
     void clean_up();
-    inline void* get_data() { return m_mapped_data; }
+
+    template<typename T = void>
+    inline T* get_data() { return reinterpret_cast<T*>(m_mapped_data); }
 
 private:
     VmaAllocation m_allocation;
@@ -155,7 +157,7 @@ private:
 
     // input
     float m_mouse_x, m_mouse_y, m_mouse_delta_x, m_mouse_delta_y;
-    bool m_mouse_captured;
+    bool m_mouse_captured = false;
     std::unordered_map<uint32_t, bool> m_keystates;
     std::unordered_map<uint32_t, bool> m_mouse_button_states;
     std::unordered_map<uint32_t, std::function<void()>> m_on_mouse_click;

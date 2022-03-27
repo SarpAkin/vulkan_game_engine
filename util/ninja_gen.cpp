@@ -66,7 +66,7 @@ public:
 
         void compile_glsl(const std::string& glsl_file, const std::string& spirv_dir = ".obj_files/spirv_files/")
         {
-            std::string spirv_file = glsl_file.substr(0, glsl_file.rfind("."));
+            std::string spirv_file = glsl_file;
 
             for (char& c : spirv_file)
                 c = c == '/' ? '_' : c;
@@ -116,7 +116,7 @@ public:
         m_file.print("rule {}\n  deps= gcc\n  depfile= $out.d\n  command= $compiler $cflags -MMD -MF $out.d -c $in -o $out\n", compile_rule);
         m_file.print("rule {}\n  command= $compiler $cflags $ldflags $in -o $out\n", link_rule);
         m_file.print("rule {}\n  deps= gcc\n  depfile= $out.d\n  command= {} -MD -MF $out.d $glflags $in -o $out && spirv-opt -Os $out -o $out\n", glslc_rule, glslc_compiler);
-        m_file.print("rule {}\n  command= {} $args -o $out\n", spirv_embed_rule, spirv_embeder);
+        m_file.print("rule {}\n  command= {} $in -o $out\n", spirv_embed_rule, spirv_embeder);
     }
 
     auto glsl_compiler()
@@ -153,7 +153,7 @@ private:
 int main()
 {
     auto builder          = NinjaBuilder("build.ninja");
-    builder.compile_flags = "-std=c++20 -Ilibs -g -O0";
+    builder.compile_flags = "-std=c++20 -Ilibs -Ivendor_git/glm -g -O0 -DLANG_CPP -DGLM_FORCE_RADIANS -DGLM_FORCE_DEPTH_ZERO_TO_ONE";
     builder.link_flags    = "-lSDL2 -ldl -lvulkan -lpthread -lfmt";
 
     std::vector<std::string> glsl_files;

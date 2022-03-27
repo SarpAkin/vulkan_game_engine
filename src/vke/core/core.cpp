@@ -7,8 +7,8 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_vulkan.h>
 
-#include "../vkutil.hpp"
 #include "../renderpass.hpp"
+#include "../vkutil.hpp"
 
 namespace vke
 {
@@ -51,7 +51,10 @@ Core::Core(uint32_t width, uint32_t height, const std::string& app_name)
 
     SDL_Init(SDL_INIT_VIDEO);
 
+    atexit(+[] { SDL_Quit(); });
+
     SDL_Vulkan_CreateSurface(m_window, instance(), &m_surface);
+
 
     // device
     //
@@ -160,7 +163,6 @@ void Core::cleanup_swapchain()
     for (auto& iv : m_swapchain_image_views)
         vkDestroyImageView(device(), iv, nullptr);
 
-
     vkDestroySurfaceKHR(instance(), m_surface, nullptr);
 }
 
@@ -222,7 +224,7 @@ void Core::run(std::function<void(FrameArgs)> frame_draw)
         timer_begin = timer_end;
     }
 
-    for(int i = 0;i < FRAME_OVERLAP;++i)
+    for (int i = 0; i < FRAME_OVERLAP; ++i)
     {
         auto& current_frame     = get_current_frame();
         const uint64_t time_out = 1'000'000'000; // 10 sec

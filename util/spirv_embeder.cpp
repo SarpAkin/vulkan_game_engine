@@ -75,9 +75,11 @@ int main(int argc, const char** argv)
             ++i;
             std::string glsl_file = argv[i];
 
-            files_to_embed.emplace_back(sprv_file,glsl_file);
+            files_to_embed.emplace_back(sprv_file, glsl_file);
         }
     }
+
+    fmt::print("embdeded files {}\n",files_to_embed);
 
     if (out_file_name.size() == 0)
     {
@@ -104,7 +106,7 @@ int main(int argc, const char** argv)
     for (const auto& [sprv_filename, shader_filename] : files_to_embed)
     {
         auto array_name = string_replace(sprv_filename, "/", "_");
-        array_name.resize(array_name.rfind(".sprv"));
+        array_name.resize(array_name.rfind(".sp"));
         array_name = string_replace(array_name, ".", "_");
 
         auto out_cpp_binary = read_file(sprv_filename.c_str());
