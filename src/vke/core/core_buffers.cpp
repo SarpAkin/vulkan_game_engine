@@ -43,8 +43,9 @@ Buffer Core::allocate_buffer(VkBufferUsageFlagBits usage, uint32_t buffer_size, 
 
     Buffer buffer      = {};
     buffer.m_allocator = m_allocator;
+    buffer.m_buffer_size = buffer_size;
 
-    VK_CHECK(vmaCreateBuffer(m_allocator, &buffer_info, &alloc_info, &buffer.buffer, &buffer.m_allocation, nullptr));
+    VK_CHECK(vmaCreateBuffer(m_allocator, &buffer_info, &alloc_info, &buffer.m_buffer, &buffer.m_allocation, nullptr));
 
     if (host_visible)
     {
@@ -119,7 +120,7 @@ Image Core::allocate_image(VkFormat format, VkImageUsageFlags usageFlags, uint32
 void Buffer::clean_up()
 {
     if (m_mapped_data) vmaUnmapMemory(m_allocator, m_allocation);
-    vmaDestroyBuffer(m_allocator, buffer, m_allocation);
+    vmaDestroyBuffer(m_allocator, m_buffer, m_allocation);
 }
 
 void Image::clean_up()

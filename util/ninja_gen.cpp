@@ -50,6 +50,7 @@ const char* compile_rule     = "compile";
 const char* link_rule        = "link";
 const char* glslc_rule       = "glc";
 const char* spirv_embed_rule = "embed_spirv";
+const char* stlib_rule       = "static_lib";
 
 const char* glslc_compiler = "glslc";
 const char* spirv_embeder  = "util/spirv_embeder.out";
@@ -117,6 +118,7 @@ public:
         m_file.print("rule {}\n  command= $compiler $cflags $ldflags $in -o $out\n", link_rule);
         m_file.print("rule {}\n  deps= gcc\n  depfile= $out.d\n  command= {} -MD -MF $out.d $glflags $in -o $out && spirv-opt -Os $out -o $out\n", glslc_rule, glslc_compiler);
         m_file.print("rule {}\n  command= {} $in -o $out\n", spirv_embed_rule, spirv_embeder);
+        m_file.print("rule {}\n  command= ar rcs $out $in\n", stlib_rule);
     }
 
     auto glsl_compiler()
@@ -138,6 +140,11 @@ public:
         return obj_file;
     }
 
+    void build_static_lib(const std::string& exec_name, const std::string& obj_files)
+    {
+        m_file.print("build {}:{} {}\n", exec_name, stlib_rule, obj_files);
+    }
+
     void build_executable(const std::string& exec_name, const std::string& obj_files)
     {
         m_file.print("build {}:{} {}\n  cflags= {}\n  ldflags= {}\n", exec_name, link_rule, obj_files, compile_flags, link_flags);
@@ -150,33 +157,65 @@ private:
     fmt::ostream m_file;
 };
 
+auto find_glsl_files(const std::string& directory)
+{
+    std::vector<std::string> glsl_files;
+
+    for (const auto& extension : {".comp", ".vert", ".frag"})
+        find_files_in_dir_append(glsl_files, directory, extension, true);
+
+    return glsl_files;
+}
+
 int main()
 {
     auto builder          = NinjaBuilder("build.ninja");
     builder.compile_flags = "-std=c++20 -Ilibs -Ivendor_git/glm -g -O0 -DLANG_CPP -DGLM_FORCE_RADIANS -DGLM_FORCE_DEPTH_ZERO_TO_ONE";
     builder.link_flags    = "-lSDL2 -ldl -lvulkan -lpthread -lfmt";
 
-    std::vector<std::string> glsl_files;
-    find_files_in_dir_append(glsl_files, "src/", ".comp", true);
-    find_files_in_dir_append(glsl_files, "src/", ".vert", true);
-    find_files_in_dir_append(glsl_files, "src/", ".frag", true);
+    const char* lib_vke = "bin/vke.a";
 
-    auto glsl_compiler = builder.glsl_compiler();
+    auto compile_cpp_files = [&](const auto& cpp_files) {
+        return map_vec(cpp_files, [&](const std::string& cpp_file) {
+            return builder.compile_cpp_file(cpp_file);
+        });
+    };
 
-    for (const auto& glsl_file : glsl_files)
-        glsl_compiler.compile_glsl(glsl_file);
+    {
+        std::vector<std::string> cpp_files;
+        for (const auto& src_dir : {"src/", "libs/"})
+            find_files_in_dir_append(cpp_files, src_dir, ".cpp", true);
 
-    std::vector<std::string> src_dirs = {"src/", "libs/"};
+        auto obj_files = compile_cpp_files(cpp_files);
 
-    std::vector<std::string> cpp_files;
-    for (const auto& src_dir : src_dirs)
-        find_files_in_dir_append(cpp_files, src_dir, ".cpp", true);
+        builder.build_static_lib(lib_vke, fmt::format("{}", fmt::join(obj_files, " ")));
+    }
 
-    cpp_files.push_back(glsl_compiler.embed(".obj_files/embeded_spirv.cpp"));
+    auto compile_sub_project = [&](const std::string& dir, const std::string& exec_name) {
+        std::vector<std::string> cpp_files;
+        find_files_in_dir_append(cpp_files, dir, ".cpp", true);
 
-    auto obj_files = map_vec(cpp_files, [&](const std::string& cpp_file) {
-        return builder.compile_cpp_file(cpp_file);
-    });
+        std::string exec_name_raw = exec_name.substr(0, exec_name.rfind("."));
 
-    builder.build_executable("out.out", fmt::format("{}", fmt::join(obj_files, " ")));
+        if (auto index = exec_name_raw.rfind("/"); index != std::string::npos)
+        {
+            exec_name_raw.erase(0, index + 1);
+        }
+
+        auto glsl_files = find_glsl_files(dir);
+
+        auto glsl_compiler = builder.glsl_compiler();
+
+        for (const auto& glsl_file : glsl_files)
+            glsl_compiler.compile_glsl(glsl_file);
+
+        cpp_files.push_back(glsl_compiler.embed(fmt::format(".obj_files/{}.cpp", exec_name_raw)));
+
+        auto obj_files = compile_cpp_files(cpp_files);
+        obj_files.push_back(lib_vke);
+
+        builder.build_executable(exec_name, fmt::format("{}", fmt::join(obj_files, " ")));
+    };
+
+    compile_sub_project("examples/plane_and_cam/", "bin/1.out");
 }

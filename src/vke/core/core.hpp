@@ -5,6 +5,8 @@
 #include <string>
 #include <vector>
 
+#include <glm/vec2.hpp>
+
 #include <vulkan/vulkan.h>
 
 struct SDL_Window;
@@ -22,18 +24,23 @@ class Buffer
     friend Core;
 
 public:
-    VkBuffer buffer;
+    const VkBuffer& buffer() const { return m_buffer; }
+    auto size() const { return m_buffer_size; }
 
-public:
     void clean_up();
 
-    template<typename T = void>
-    inline T* get_data() { return reinterpret_cast<T*>(m_mapped_data); }
+    template <typename T = void>
+    inline T* get_data()
+    {
+        return reinterpret_cast<T*>(m_mapped_data);
+    }
 
 private:
+    VkBuffer m_buffer;
     VmaAllocation m_allocation;
     VmaAllocator m_allocator = nullptr;
     void* m_mapped_data      = nullptr;
+    size_t m_buffer_size     = 0;
 };
 
 class Image
@@ -69,7 +76,7 @@ public:
 
     inline auto instance() { return m_instance; }
     inline auto device() { return m_device; }
-    inline VkPipelineCache pipeline_cache() { return nullptr; }
+    inline VkPipelineCache pipeline_cache() { return m_pipeline_cache; }
 
     auto width() { return m_width; }
     auto height() { return m_height; }
@@ -90,9 +97,12 @@ public:
     auto swapchain_image_format() { return m_swapchain_image_format; }
     auto swapchain_image_views() { return m_swapchain_image_views; }
 
+    bool is_key_pressed(uint32_t key) { return m_keystates[key]; }
+    glm::vec2 mouse_delta() { return glm::vec2(m_mouse_delta_x, m_mouse_delta_y); }
+
     auto allocator() { return m_allocator; }
 
-    inline void set_window_renderpass(RenderPass* renderpass) {m_window_renderpass = renderpass;};
+    inline void set_window_renderpass(RenderPass* renderpass) { m_window_renderpass = renderpass; };
 
     struct FrameArgs
     {
@@ -117,6 +127,9 @@ private:
     void init_allocator();
     void cleanup_allocator();
 
+    void init_pipeline_cache();
+    void cleanup_pipeline_cache();
+
 private:
     struct Data;
     std::unique_ptr<Data> m_data;
@@ -127,6 +140,8 @@ private:
 
     uint32_t m_graphics_queue_family; // family of that queue
     VkQueue m_graphics_queue;         // queue we will submit to
+
+    VkPipelineCache m_pipeline_cache = nullptr;
 
     struct FrameData
     {
@@ -157,11 +172,11 @@ private:
 
     // input
     float m_mouse_x, m_mouse_y, m_mouse_delta_x, m_mouse_delta_y;
-    bool m_mouse_captured = false;
     std::unordered_map<uint32_t, bool> m_keystates;
     std::unordered_map<uint32_t, bool> m_mouse_button_states;
     std::unordered_map<uint32_t, std::function<void()>> m_on_mouse_click;
     std::unordered_map<uint32_t, std::function<void()>> m_on_key_down;
+    bool m_mouse_captured = false;
 
     // stats
     bool m_running = true;

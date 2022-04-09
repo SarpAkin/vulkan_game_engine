@@ -12,3 +12,5 @@ test/test.cpp
 imgui.ini
 **vgcore.*
 experimental
+bin/vke.a
+.vke_cache

@@ -140,7 +140,7 @@ std::optional<VkPipeline> PipelineBuilder::build(Core& core, RenderPass& renderp
 
     // it's easy to error out on create graphics pipeline, so we handle it a bit better than the common VK_CHECK case
     VkPipeline newPipeline;
-    if (vkCreateGraphicsPipelines(core.device(), nullptr, 1, &pipeline_info, nullptr, &newPipeline) != VK_SUCCESS)
+    if (vkCreateGraphicsPipelines(core.device(), core.pipeline_cache(), 1, &pipeline_info, nullptr, &newPipeline) != VK_SUCCESS)
     {
         cleanup();
         return std::nullopt; // failed to create graphics pipeline

@@ -54,7 +54,7 @@ const char* vk_result_string(VkResult res)
 
 bool is_depth_format(VkFormat format)
 {
-    const static std::vector<VkFormat> depth_formats = {
+    const static VkFormat depth_formats[] = {
         VK_FORMAT_D16_UNORM,
         VK_FORMAT_D32_SFLOAT,
         VK_FORMAT_D16_UNORM_S8_UINT,

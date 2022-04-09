@@ -97,10 +97,13 @@ Core::Core(uint32_t width, uint32_t height, const std::string& app_name)
     init_allocator();
     init_frame_data();
     init_swapchain();
+    init_pipeline_cache();
+
 }
 
 Core::~Core()
 {
+    cleanup_pipeline_cache();
     cleanup_swapchain();
     cleanup_frame_data();
     cleanup_allocator();
@@ -421,5 +424,8 @@ VkSemaphore Core::create_semaphore()
 
     return semaphore;
 }
+
+
+
 
 } // namespace vke
