@@ -88,10 +88,12 @@ public:
     VkCommandBuffer create_command_buffer(VkCommandPool pool, VkCommandBufferLevel level);
     VkFence create_fence(bool signalled = false);
     VkSemaphore create_semaphore();
+    VkSampler create_sampler(VkFilter filters, VkSamplerAddressMode samplerAddressMode = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE);
 
     // buffers
-    Buffer allocate_buffer(VkBufferUsageFlagBits usage, uint32_t buffer_size, bool host_visible);
-    Image allocate_image(VkFormat format, VkImageUsageFlags usageFlags, uint32_t width, uint32_t height, bool cpu_read_write);
+    std::unique_ptr<Buffer> allocate_buffer(VkBufferUsageFlagBits usage, uint32_t buffer_size, bool host_visible);
+    std::unique_ptr<Image> allocate_image(VkFormat format, VkImageUsageFlags usageFlags, uint32_t width, uint32_t height, bool cpu_read_write);
+    std::unique_ptr<Image> load_png(const char* path, VkCommandBuffer cmd, std::vector<std::function<void()>>& cleanup_queue);
 
     //
     auto swapchain_image_format() { return m_swapchain_image_format; }
@@ -103,6 +105,8 @@ public:
     auto allocator() { return m_allocator; }
 
     inline void set_window_renderpass(RenderPass* renderpass) { m_window_renderpass = renderpass; };
+
+    inline auto frame_index(){return m_frame_index;}
 
     struct FrameArgs
     {
@@ -149,6 +153,7 @@ private:
         VkCommandBuffer cmd;
         VkSemaphore present_semaphore, render_semaphore;
         VkFence render_fence;
+        std::vector<std::function<void()>> last_cleanup_queue;
     };
 
     std::vector<FrameData> m_frame_data;

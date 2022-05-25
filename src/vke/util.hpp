@@ -11,16 +11,15 @@
 
 #define EXPECTION(mes) std::runtime_error("runtime error at: " FILE_LINE "\n\t" mes)
 
-
-template <typename T>
-auto map_vec(const std::vector<T>& vec, auto&& map_function)
+auto map_vec(auto&& vec, auto&& func)
 {
-    std::vector<decltype(map_function(vec.back()))> mapped_vec;
-    mapped_vec.reserve(vec.size());
+    std::vector<decltype(func(*vec.begin()))> ret_vec;
+    ret_vec.reserve(vec.size());
     for (auto&& e : vec)
-        mapped_vec.push_back(map_function(e));
-
-    return mapped_vec;
+    {
+        ret_vec.push_back(func(e));
+    }
+    return ret_vec;
 }
 
 struct Free

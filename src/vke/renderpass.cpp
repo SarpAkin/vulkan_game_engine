@@ -38,14 +38,16 @@ uint32_t RenderPassBuilder::add_attachment(VkFormat format, std::optional<VkClea
     return m_attachments.size() - 1;
 }
 
-uint32_t RenderPassBuilder::add_swapchain_attachment(Core& core, std::optional<VkClearValue> clear_value)
+uint32_t RenderPassBuilder::add_swapchain_attachment(Core* core, std::optional<VkClearValue> clear_value)
 {
-    uint32_t index = add_attachment(core.swapchain_image_format(), clear_value);
+    assert(core);
+
+    uint32_t index = add_attachment(core->swapchain_image_format(), clear_value);
 
     m_attachments[index].finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
     m_swapchain_attachment = SwapChainAttachment{
-        .views = core.swapchain_image_views(),
+        .views = core->swapchain_image_views(),
         .index = index,
     };
 
@@ -92,7 +94,7 @@ void RenderPassBuilder::add_subpass(const std::vector<uint32_t>& attachments_ids
 
 struct RenderPassArgs
 {
-    Core& core;
+    Core* core;
     VkRenderPass render_pass;
     std::vector<RenderPass::Attachments> attachments;
     uint32_t width, height;
@@ -100,8 +102,10 @@ struct RenderPassArgs
     std::vector<VkClearValue> clear_values;
 };
 
-std::unique_ptr<RenderPass> RenderPassBuilder::build(Core& core, uint32_t width, uint32_t height)
+std::unique_ptr<RenderPass> RenderPassBuilder::build(Core* core, uint32_t width, uint32_t height)
 {
+    assert(core);
+
     auto subpassses = map_vec(m_subpasses, [](const SubpassDesc& d) { return d.description; });
 
     VkRenderPassCreateInfo render_pass_info = {
@@ -115,7 +119,7 @@ std::unique_ptr<RenderPass> RenderPassBuilder::build(Core& core, uint32_t width,
 
     VkRenderPass render_pass;
 
-    VK_CHECK(vkCreateRenderPass(core.device(), &render_pass_info, nullptr, &render_pass));
+    VK_CHECK(vkCreateRenderPass(core->device(), &render_pass_info, nullptr, &render_pass));
 
     return std::make_unique<RenderPass>(RenderPassArgs{
         .core        = core,
@@ -154,7 +158,7 @@ RenderPass::RenderPass(RenderPassArgs args)
 
     create_frame_buffers();
 
-    m_core.set_window_renderpass(this);
+    m_core->set_window_renderpass(this);
 }
 
 void RenderPass::create_frame_buffers()
@@ -163,14 +167,14 @@ void RenderPass::create_frame_buffers()
     {
         if (att.external) continue;
 
-        Image im = m_core.allocate_image(att.format,
+        auto im = m_core->allocate_image(att.format,
             is_depth_format(att.format) ? VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT : VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
             m_width, m_height, false);
 
-        att.image = im.image;
-        att.view  = im.view;
+        att.image = im->image;
+        att.view  = im->view;
 
-        m_images.push_back(im);
+        m_images.push_back(std::move(im));
     }
 
     auto attachment_views = map_vec(m_attachments, [](const Attachments& att) { return att.view; });
@@ -195,23 +199,23 @@ void RenderPass::create_frame_buffers()
             .layers          = 1,
         };
 
-        VK_CHECK(vkCreateFramebuffer(m_core.device(), &fb_info, nullptr, &m_framebuffers[i]));
+        VK_CHECK(vkCreateFramebuffer(m_core->device(), &fb_info, nullptr, &m_framebuffers[i]));
     }
 }
 
 void RenderPass::clean_frame_buffers()
 {
     for (auto& image : m_images)
-        image.clean_up();
+        image->clean_up();
 
     for (auto& fb : m_framebuffers)
-        vkDestroyFramebuffer(m_core.device(), fb, nullptr);
+        vkDestroyFramebuffer(m_core->device(), fb, nullptr);
 }
 
 void RenderPass::clean()
 {
     clean_frame_buffers();
-    vkDestroyRenderPass(m_core.device(), m_renderpass, nullptr);
+    vkDestroyRenderPass(m_core->device(), m_renderpass, nullptr);
 }
 
 void RenderPass::begin(VkCommandBuffer cmd)

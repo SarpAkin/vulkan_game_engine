@@ -28,7 +28,7 @@ void Core::cleanup_allocator()
     vmaDestroyAllocator(m_allocator);
 }
 
-Buffer Core::allocate_buffer(VkBufferUsageFlagBits usage, uint32_t buffer_size, bool host_visible)
+std::unique_ptr<Buffer> Core::allocate_buffer(VkBufferUsageFlagBits usage, uint32_t buffer_size, bool host_visible)
 {
     VkBufferCreateInfo buffer_info = {
         .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
@@ -41,21 +41,21 @@ Buffer Core::allocate_buffer(VkBufferUsageFlagBits usage, uint32_t buffer_size, 
         .usage = VMA_MEMORY_USAGE_AUTO,
     };
 
-    Buffer buffer      = {};
-    buffer.m_allocator = m_allocator;
-    buffer.m_buffer_size = buffer_size;
+    auto buffer      = std::make_unique<Buffer>();
+    buffer->m_allocator = m_allocator;
+    buffer->m_buffer_size = buffer_size;
 
-    VK_CHECK(vmaCreateBuffer(m_allocator, &buffer_info, &alloc_info, &buffer.m_buffer, &buffer.m_allocation, nullptr));
+    VK_CHECK(vmaCreateBuffer(m_allocator, &buffer_info, &alloc_info, &buffer->m_buffer, &buffer->m_allocation, nullptr));
 
     if (host_visible)
     {
-        VK_CHECK(vmaMapMemory(m_allocator, buffer.m_allocation, &buffer.m_mapped_data));
+        VK_CHECK(vmaMapMemory(m_allocator, buffer->m_allocation, &buffer->m_mapped_data));
     }
 
     return buffer;
 }
 
-Image Core::allocate_image(VkFormat format, VkImageUsageFlags usageFlags, uint32_t width, uint32_t height, bool host_visible)
+std::unique_ptr<Image> Core::allocate_image(VkFormat format, VkImageUsageFlags usageFlags, uint32_t width, uint32_t height, bool host_visible)
 {
     VkImageCreateInfo ic_info = {
         .sType       = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
@@ -98,20 +98,20 @@ Image Core::allocate_image(VkFormat format, VkImageUsageFlags usageFlags, uint32
 
     VK_CHECK(vkCreateImageView(device(), &ivc_info, nullptr, &view));
 
-    Image vke_image = {};
+    auto vke_image = std::make_unique<Image>();
 
-    vke_image.image        = image;
-    vke_image.view         = view;
-    vke_image.m_allocation = allocation;
-    vke_image.m_core       = this;
+    vke_image->image        = image;
+    vke_image->view         = view;
+    vke_image->m_allocation = allocation;
+    vke_image->m_core       = this;
 
     if (host_visible)
     {
-        VK_CHECK(vmaMapMemory(m_allocator, allocation, &vke_image.m_mapped_data));
+        VK_CHECK(vmaMapMemory(m_allocator, allocation, &vke_image->m_mapped_data));
     }
     else
     {
-        vke_image.m_mapped_data = nullptr;
+        vke_image->m_mapped_data = nullptr;
     }
 
     return vke_image;

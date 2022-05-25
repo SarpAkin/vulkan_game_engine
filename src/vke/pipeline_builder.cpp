@@ -86,8 +86,10 @@ void PipelineBuilder::set_depth_testing(bool depth_testing)
     };
 }
 
-std::optional<VkPipeline> PipelineBuilder::build(Core& core, RenderPass& renderpass, uint32_t subpass_index)
+std::optional<VkPipeline> PipelineBuilder::build(Core* core, RenderPass* renderpass, uint32_t subpass_index)
 {
+    assert(core && renderpass);
+
     VkPipelineViewportStateCreateInfo viewport_state = {
         .sType         = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
         .viewportCount = 1,
@@ -128,19 +130,19 @@ std::optional<VkPipeline> PipelineBuilder::build(Core& core, RenderPass& renderp
         .pColorBlendState    = &color_blending,
         .pDynamicState       = &dynamic_state_info,
         .layout              = pipeline_layout,
-        .renderPass          = renderpass.renderpass(),
+        .renderPass          = renderpass->renderpass(),
         .subpass             = subpass_index,
         .basePipelineHandle  = nullptr,
     };
 
     auto cleanup = [&] {
         for (auto& module : shader_stages)
-            vkDestroyShaderModule(core.device(), module.module, nullptr);
+            vkDestroyShaderModule(core->device(), module.module, nullptr);
     };
 
     // it's easy to error out on create graphics pipeline, so we handle it a bit better than the common VK_CHECK case
     VkPipeline newPipeline;
-    if (vkCreateGraphicsPipelines(core.device(), core.pipeline_cache(), 1, &pipeline_info, nullptr, &newPipeline) != VK_SUCCESS)
+    if (vkCreateGraphicsPipelines(core->device(), core->pipeline_cache(), 1, &pipeline_info, nullptr, &newPipeline) != VK_SUCCESS)
     {
         cleanup();
         return std::nullopt; // failed to create graphics pipeline

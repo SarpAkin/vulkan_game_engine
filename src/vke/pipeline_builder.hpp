@@ -77,7 +77,7 @@ public:
         _set_vertex_input();
     }
 
-    std::optional<VkPipeline> build(Core& core, RenderPass& renderpass, uint32_t subpass_index);
+    std::optional<VkPipeline> build(Core* core, RenderPass* renderpass, uint32_t subpass_index);
 
 private:
     std::unique_ptr<imp::VertexInputDescription> m_vertex_input;

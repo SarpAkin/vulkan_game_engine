@@ -73,6 +73,7 @@ VkDescriptorSet DescriptorSetBuilder::build(DescriptorPool& pool, VkDescriptorSe
     VkDescriptorSet set = pool.allocate_set(layout);
 
     std::vector<VkWriteDescriptorSet> writes;
+    writes.reserve(m_buffer_bindings.size() + m_image_bindings.size());
 
     for (auto& buffer_binding : m_buffer_bindings)
         writes.push_back(VkWriteDescriptorSet{

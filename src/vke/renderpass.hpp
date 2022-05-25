@@ -23,6 +23,7 @@ class RenderPass
 public:
     struct Subpass
     {
+        RenderPass* render_pass;
         std::vector<uint32_t> attachments;
         uint32_t subpass_index;
     };
@@ -47,7 +48,7 @@ public:
     inline auto renderpass() { return m_renderpass; }
     inline void set_attachment_clear_value(uint32_t index, VkClearValue val)
     {
-        if(m_clear_values.size() > index) m_clear_values[index] = val;
+        if (m_clear_values.size() > index) m_clear_values[index] = val;
     }
 
     void clean();
@@ -56,12 +57,13 @@ private:
     void create_frame_buffers();
     void clean_frame_buffers();
 
+
 private:
-    Core& m_core;
+    Core* m_core;
     VkRenderPass m_renderpass;
     uint32_t m_width, m_height;
     std::vector<Attachments> m_attachments;
-    std::vector<Image> m_images;
+    std::vector<std::unique_ptr<Image>> m_images;
     std::vector<Subpass> m_subpasses;
     std::vector<VkFramebuffer> m_framebuffers;
     uint32_t m_framebuffer_index = 0;
@@ -84,9 +86,9 @@ public:
 
     uint32_t
     add_attachment(VkFormat format, std::optional<VkClearValue> clear_value = std::nullopt);
-    uint32_t add_swapchain_attachment(Core& core, std::optional<VkClearValue> clear_value = std::nullopt);
+    uint32_t add_swapchain_attachment(Core* core, std::optional<VkClearValue> clear_value = std::nullopt);
     void add_subpass(const std::vector<uint32_t>& attachments_ids, const std::optional<uint32_t>& depth_stencil_attachment = std::nullopt, const std::vector<uint32_t>& input_attachments = {});
-    std::unique_ptr<RenderPass> build(Core& core, uint32_t width, uint32_t height);
+    std::unique_ptr<RenderPass> build(Core* core, uint32_t width, uint32_t height);
 
 private:
     struct SubpassDesc;

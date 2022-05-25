@@ -1,0 +1,98 @@
+#version 450
+
+#include "../glsl_shared.hpp"
+
+layout (local_size_x = 128) in;
+layout (local_size_y = 1) in;
+
+layout (push_constant) uniform PushConstants
+{
+    uint chunk_count;
+    uint max_chunk_count;
+};
+
+struct ChunkDrawData
+{
+    ivec3 pos;
+    uint sub_buffer_id;
+};
+
+struct Area
+{
+    uint offset;
+    uint size;
+};
+
+struct IndirectDraw
+{
+    uint index_count;
+    uint instance_count;
+    uint first_index;
+    int  vertex_offset;
+    uint first_instance;
+};
+
+layout(std430,set = 0,binding = 0) readonly buffer ChunkDrawBuffer
+{
+    ChunkDrawData chunks[];
+} chunk_buffer;
+
+layout(std430,set = 0,binding = 1) readonly buffer SubBuffers
+{
+    Area areas[];
+} sub_buffers;
+
+layout(std430,set = 0,binding = 2) writeonly buffer IndirectDraws
+{
+    IndirectDraw draws[];
+} indirect;
+
+struct MTStats
+{
+    uint draw_count;
+    uint quad_count;
+};
+
+layout(std430,set = 0,binding = 3) buffer MultiDrawStats
+{
+    MTStats stats[];
+};
+
+layout(std430,set= 0,binding = 4) readonly buffer Frustrums
+{
+    Frustrum frustrums[];
+};
+
+void main()
+{
+    uint x_id = gl_GlobalInvocationID.x;
+    uint y_id = gl_GlobalInvocationID.y;
+
+    if(x_id >= chunk_count) return;
+
+    ChunkDrawData chunk = chunk_buffer.chunks[x_id];
+
+    vec3 chunk_real_pos = chunk.pos * 32;
+
+    AABB chunk_aabb;
+    chunk_aabb.min = chunk_real_pos;
+    chunk_aabb.max = chunk_real_pos + vec3(32.0,32.0,32.0);
+
+    if(frustrum_vs_aabb(frustrums[y_id],chunk_aabb))
+    {
+        uint draw_id = atomicAdd(stats[y_id].draw_count,1);
+
+        Area sub_area = sub_buffers.areas[chunk.sub_buffer_id];
+        atomicAdd(stats[y_id].quad_count,sub_area.size / 4);
+
+        IndirectDraw draw;
+        draw.first_index = 0;
+        draw.index_count = (sub_area.size / 4) * 6;
+        draw.vertex_offset = int(sub_area.offset);
+        
+        draw.instance_count = 1;
+        draw.first_instance = x_id;
+
+        indirect.draws[y_id * max_chunk_count + draw_id] = draw;
+    }
+}

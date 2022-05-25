@@ -191,6 +191,8 @@ int main()
         builder.build_static_lib(lib_vke, fmt::format("{}", fmt::join(obj_files, " ")));
     }
 
+    builder.compile_flags += " -Isrc/";
+
     auto compile_sub_project = [&](const std::string& dir, const std::string& exec_name) {
         std::vector<std::string> cpp_files;
         find_files_in_dir_append(cpp_files, dir, ".cpp", true);
@@ -216,6 +218,8 @@ int main()
 
         builder.build_executable(exec_name, fmt::format("{}", fmt::join(obj_files, " ")));
     };
-
-    compile_sub_project("examples/plane_and_cam/", "bin/1.out");
+    
+    // compile_sub_project("demos/plane_and_cam/", "bin/1.out");
+    // compile_sub_project("demos/portals/", "bin/portals.out");
+    compile_sub_project("demos/minecraft_clone/", "bin/mc.out");
 }

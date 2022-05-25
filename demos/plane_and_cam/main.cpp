@@ -6,12 +6,13 @@
 #include <glm/mat4x4.hpp>
 #include <glm/vec3.hpp>
 
-#include "../src/vke/core/core.hpp"
-#include "../src/vke/descriptor_pool.hpp"
-#include "../src/vke/descriptor_set_builder.hpp"
-#include "../src/vke/pipeline_builder.hpp"
-#include "../src/vke/renderpass.hpp"
-#include "../src/vke/util.hpp"
+#include <vke/core/core.hpp>
+#include <vke/descriptor_pool.hpp>
+#include <vke/descriptor_set_builder.hpp>
+#include <vke/pipeline_builder.hpp>
+#include <vke/renderpass.hpp>
+#include <vke/util.hpp>
+
 struct Vertex
 {
     glm::vec3 pos;
@@ -21,7 +22,7 @@ struct Vertex
 
 struct Mesh
 {
-    vke::Buffer vb;
+    std::unique_ptr<vke::Buffer> vb;
     uint32_t vertex_count;
 };
 
@@ -30,7 +31,7 @@ Mesh create_plane_mesh(vke::Core& core, glm::ivec2 size)
     uint32_t vertex_count = (size.x * size.y * 6);
 
     auto buffer       = core.allocate_buffer(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, sizeof(Vertex) * (vertex_count + 1), true);
-    Vertex* verticies = buffer.get_data<Vertex>();
+    Vertex* verticies = buffer->get_data<Vertex>();
 
     for (int y = 0; y < size.y; ++y)
     {
@@ -50,12 +51,13 @@ Mesh create_plane_mesh(vke::Core& core, glm::ivec2 size)
     }
 
     return Mesh{
-        .vb           = buffer,
+        .vb           = std::move(buffer),
         .vertex_count = vertex_count};
 }
 
 int main()
 {
+
 
     uint32_t width = 800, height = 500;
 
@@ -63,10 +65,10 @@ int main()
 
     auto renderpass = [&] {
         auto rp_builder = vke::RenderPassBuilder();
-        uint32_t sw_att = rp_builder.add_swapchain_attachment(core, VkClearValue{.color = {.25f, .3f, .9f, 0.f}});
+        uint32_t sw_att = rp_builder.add_swapchain_attachment(&core, VkClearValue{.color = {.25f, .3f, .9f, 0.f}});
         uint32_t dp_att = rp_builder.add_attachment(VK_FORMAT_D32_SFLOAT, VkClearValue{.depthStencil{1.f}});
         rp_builder.add_subpass({sw_att}, dp_att);
-        return rp_builder.build(core, width, height);
+        return rp_builder.build(&core, width, height);
     }();
 
     struct PushConstant
@@ -84,7 +86,7 @@ int main()
     auto d_pool = vke::DescriptorPool(core.device());
 
     auto set_layout = vke::DescriptorSetLayoutBuilder().add_ubo(VK_SHADER_STAGE_VERTEX_BIT).build(core.device());
-    auto d_set      = vke::DescriptorSetBuilder().add_ubo(ubo, VK_SHADER_STAGE_VERTEX_BIT).build(d_pool, set_layout);
+    auto d_set      = vke::DescriptorSetBuilder().add_ubo(*ubo, VK_SHADER_STAGE_VERTEX_BIT).build(d_pool, set_layout);
 
     auto p_layout = vke::PipelineLayoutBuilder().add_push_constant<PushConstant>(VK_SHADER_STAGE_VERTEX_BIT).add_set_layout(set_layout).build(core.device());
 
@@ -99,7 +101,7 @@ int main()
         builder.add_shader_stage(VK_SHADER_STAGE_VERTEX_BIT, LOAD_LOCAL_SHADER_MODULE(core.device(), "a.vert").value());
         builder.add_shader_stage(VK_SHADER_STAGE_FRAGMENT_BIT, LOAD_LOCAL_SHADER_MODULE(core.device(), "a.frag").value());
 
-        return builder.build(core, *renderpass, 0).value();
+        return builder.build(&core, renderpass.get(), 0).value();
     };
 
     vkDestroyPipeline(core.device(), pipeline_fn(), nullptr);
@@ -107,7 +109,7 @@ int main()
     auto pipeline = pipeline_fn();
 
     auto buffer       = core.allocate_buffer(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, sizeof(Vertex) * 4, true);
-    Vertex* verticies = buffer.get_data<Vertex>();
+    Vertex* verticies = buffer->get_data<Vertex>();
 
     verticies[0].pos = glm::vec3(-0.5, -0.5, 0.1);
     verticies[1].pos = glm::vec3(0, 0.5, 0.1);
@@ -171,26 +173,28 @@ int main()
 
         vkCmdPushConstants(cmd, p_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstant), &push);
         size_t offsets = 0;
-        vkCmdBindVertexBuffers(cmd, 0, 1, &plane_mesh.vb.buffer(), &offsets);
+        vkCmdBindVertexBuffers(cmd, 0, 1, &plane_mesh.vb->buffer(), &offsets);
 
         vkCmdDraw(cmd, plane_mesh.vertex_count, 1, 0, 0);
 
         renderpass->end(cmd);
     });
 
-    ubo.clean_up();
-    buffer.clean_up();
+    ubo->clean_up();
+    buffer->clean_up();
 
     vkDestroyDescriptorSetLayout(core.device(), set_layout, nullptr);
     
     d_pool.clean();
 
-    plane_mesh.vb.clean_up();
+    plane_mesh.vb->clean_up();
 
     vkDestroyPipelineLayout(core.device(), p_layout, nullptr);
     vkDestroyPipeline(core.device(), pipeline, nullptr);
 
     renderpass->clean();
+
+
 
     return 0;
 }

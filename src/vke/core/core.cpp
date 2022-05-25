@@ -55,7 +55,6 @@ Core::Core(uint32_t width, uint32_t height, const std::string& app_name)
 
     SDL_Vulkan_CreateSurface(m_window, instance(), &m_surface);
 
-
     // device
     //
     VkPhysicalDeviceFeatures req_features  = {};
@@ -98,7 +97,6 @@ Core::Core(uint32_t width, uint32_t height, const std::string& app_name)
     init_frame_data();
     init_swapchain();
     init_pipeline_cache();
-
 }
 
 Core::~Core()
@@ -306,13 +304,16 @@ void Core::draw_frame(float delta_t, std::function<void(FrameArgs)>& frame_func)
 
     begin_cmd(cmd);
 
-    std::vector<std::function<void()>> cleanup_queue;
+    for (auto& func : current_frame.last_cleanup_queue)
+        func();
+
+    current_frame.last_cleanup_queue.clear();
 
     FrameArgs frame_args{
         .delta_t       = delta_t,
         .frame_index   = 0,
         .cmd           = cmd,
-        .cleanup_queue = cleanup_queue,
+        .cleanup_queue = current_frame.last_cleanup_queue,
     };
     frame_func(frame_args);
 
@@ -425,7 +426,23 @@ VkSemaphore Core::create_semaphore()
     return semaphore;
 }
 
+VkSampler Core::create_sampler(VkFilter filter, VkSamplerAddressMode address_mode)
+{
+    VkSamplerCreateInfo info = {
+        .sType        = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+        .magFilter    = filter,
+        .minFilter    = filter,
+        .addressModeU = address_mode,
+        .addressModeV = address_mode,
+        .addressModeW = address_mode,
+        .borderColor  = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE,
+    };
 
+    VkSampler sampler;
 
+    VK_CHECK(vkCreateSampler(device(), &info, nullptr, &sampler));
+
+    return sampler;
+}
 
 } // namespace vke
