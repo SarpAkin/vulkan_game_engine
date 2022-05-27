@@ -16,6 +16,7 @@
 #include <vke/util.hpp>
 
 #include "render/chunk/chunk_renderer.hpp"
+#include "render/fonts/font_renderer.hpp"
 
 #include "game/chunk.hpp"
 #include "game/world.hpp"
@@ -106,8 +107,11 @@ public:
     ~App()
     {
         m_chunk_renderer->cleanup();
+        m_fontrenderer->cleanup();
         m_main_pass->clean();
         m_lifetime_pool->clean();
+
+        m_text->clean_up();
 
         for (auto& frame_data : m_frame_datas)
         {
@@ -137,19 +141,25 @@ private:
             m_chunk_renderer = std::make_unique<ChunkRenderer>(m_core.get(), *m_lifetime_pool, cmd, cleanup_queue);
             m_chunk_renderer->register_renderpass(m_main_pass.get(), 0, false);
 
-            for(int i = 0;i < 2;++i)
+            for (int i = 0; i < 2; ++i)
             {
                 auto c = std::make_unique<Chunk>();
-                for(int y = 0;y < 32;++y)
+                for (int y = 0; y < 32; ++y)
                 {
-                    for(int x = 0;x < 32;++x)
+                    for (int x = 0; x < 32; ++x)
                     {
                         c->set_block(Tile::grass, x, 4, y);
                     }
                 }
                 m_world->set_chunk(std::move(c), glm::ivec2(i, 0));
             }
+        }
 
+        if (m_fontrenderer == nullptr)
+        {
+            m_fontrenderer = std::make_unique<FontRenderer>(m_core.get(), m_lifetime_pool.get(), cmd, cleanup_queue);
+            m_fontrenderer->register_renderpass(m_main_pass.get(), 0);
+            m_text         = m_fontrenderer->mesh_string("const std::string &stringga");
         }
 
         for (auto c : m_world->get_updated_chunks())
@@ -165,6 +175,8 @@ private:
 
         m_chunk_renderer->render(cmd, m_main_pass.get(), 0, proj_view);
 
+        m_fontrenderer->render_text(cmd, m_main_pass.get(), m_text.get(), glm::vec2(-0.8f, 0.f), glm::vec2(10.f, 10.f) / m_main_pass->size());
+
         m_main_pass->end(cmd);
     }
 
@@ -173,6 +185,8 @@ private:
     std::unique_ptr<vke::RenderPass> m_main_pass;
     std::unique_ptr<vke::DescriptorPool> m_lifetime_pool;
     std::unique_ptr<World> m_world;
+    std::unique_ptr<FontRenderer> m_fontrenderer;
+    std::unique_ptr<vke::Buffer> m_text;
 
     std::unique_ptr<ChunkRenderer> m_chunk_renderer;
 

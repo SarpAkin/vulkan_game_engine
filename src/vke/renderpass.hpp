@@ -4,6 +4,8 @@
 #include <optional>
 #include <vector>
 
+#include <glm/vec2.hpp>
+
 #include <vulkan/vulkan.h>
 
 // #include "vulkan/core/core.hpp"
@@ -50,13 +52,13 @@ public:
     {
         if (m_clear_values.size() > index) m_clear_values[index] = val;
     }
+    inline glm::vec2 size(){return glm::vec2(m_width,m_height);}
 
     void clean();
 
 private:
     void create_frame_buffers();
     void clean_frame_buffers();
-
 
 private:
     Core* m_core;

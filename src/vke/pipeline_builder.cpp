@@ -3,6 +3,7 @@
 #include "core/core.hpp"
 #include "renderpass.hpp"
 #include "vkutil.hpp"
+#include "util.hpp"
 
 extern const std::unordered_map<std::string, std::pair<const uint32_t*, uint32_t>> embeded_sprvs;
 
@@ -89,6 +90,8 @@ void PipelineBuilder::set_depth_testing(bool depth_testing)
 std::optional<VkPipeline> PipelineBuilder::build(Core* core, RenderPass* renderpass, uint32_t subpass_index)
 {
     assert(core && renderpass);
+
+    BENCHMARK_FUNCTION();
 
     VkPipelineViewportStateCreateInfo viewport_state = {
         .sType         = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,

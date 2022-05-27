@@ -24,7 +24,18 @@ std::unique_ptr<Image> Core::load_png(const char* path, VkCommandBuffer cmd, std
 
     memcpy(stencil->get_data(), pixels, buf_size);
 
-    auto texture = this->allocate_image(VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, tex_width, tex_height, false);
+    auto texture = this->buffer_to_image(cmd, stencil.get(), VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_USAGE_SAMPLED_BIT, tex_width, tex_height);
+
+    cleanup_queue.push_back([stencil = std::shared_ptr(std::move(stencil))]() mutable {
+        stencil->clean_up();
+    });
+
+    return texture;
+}
+
+std::unique_ptr<Image> Core::buffer_to_image(VkCommandBuffer cmd,Buffer* buffer, VkFormat format, VkImageUsageFlags usageFlags, uint32_t width, uint32_t height)
+{
+    auto texture = this->allocate_image(format, VK_IMAGE_USAGE_TRANSFER_DST_BIT | usageFlags, width, height, false);
 
     VkImageMemoryBarrier image_transfer_barrier = {
         .sType            = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
@@ -56,14 +67,14 @@ std::unique_ptr<Image> Core::load_png(const char* path, VkCommandBuffer cmd, std
              .layerCount     = 1,
         },
         .imageExtent = VkExtent3D{
-            .width  = static_cast<uint32_t>(tex_width),
-            .height = static_cast<uint32_t>(tex_height),
+            .width  = static_cast<uint32_t>(width),
+            .height = static_cast<uint32_t>(height),
             .depth  = 1,
         },
     };
 
     // copy the buffer into the image
-    vkCmdCopyBufferToImage(cmd, stencil->buffer(), texture->image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy_region);
+    vkCmdCopyBufferToImage(cmd, buffer->buffer(), texture->image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy_region);
 
     VkImageMemoryBarrier image_readable_barrier = image_transfer_barrier;
 
@@ -75,10 +86,6 @@ std::unique_ptr<Image> Core::load_png(const char* path, VkCommandBuffer cmd, std
 
     // barrier the image into the shader readable layout
     vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &image_readable_barrier);
-
-    cleanup_queue.push_back([stencil = std::shared_ptr(std::move(stencil))]() mutable {
-        stencil->clean_up();
-    });
 
     return texture;
 }

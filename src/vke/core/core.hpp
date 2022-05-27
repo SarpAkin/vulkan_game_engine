@@ -94,6 +94,7 @@ public:
     std::unique_ptr<Buffer> allocate_buffer(VkBufferUsageFlagBits usage, uint32_t buffer_size, bool host_visible);
     std::unique_ptr<Image> allocate_image(VkFormat format, VkImageUsageFlags usageFlags, uint32_t width, uint32_t height, bool cpu_read_write);
     std::unique_ptr<Image> load_png(const char* path, VkCommandBuffer cmd, std::vector<std::function<void()>>& cleanup_queue);
+    std::unique_ptr<Image> buffer_to_image(VkCommandBuffer cmd,Buffer* buffer,VkFormat format, VkImageUsageFlags usageFlags, uint32_t width, uint32_t height);
 
     //
     auto swapchain_image_format() { return m_swapchain_image_format; }

@@ -12,6 +12,13 @@
 namespace vke
 {
 
+struct RenderPassBuilder::SubpassDesc
+{
+    std::vector<VkAttachmentReference> attachments;
+    std::unique_ptr<VkAttachmentReference> dp_ref;
+    VkSubpassDescription description;
+};
+
 RenderPassBuilder::RenderPassBuilder()
 {
 }
@@ -54,12 +61,7 @@ uint32_t RenderPassBuilder::add_swapchain_attachment(Core* core, std::optional<V
     return index;
 }
 
-struct RenderPassBuilder::SubpassDesc
-{
-    std::vector<VkAttachmentReference> attachments;
-    std::unique_ptr<VkAttachmentReference> dp_ref;
-    VkSubpassDescription description;
-};
+
 
 void RenderPassBuilder::add_subpass(const std::vector<uint32_t>& attachments_ids, const std::optional<uint32_t>& depth_stencil_attachment, const std::vector<uint32_t>& input_attachments)
 {
