@@ -4,7 +4,6 @@
 #include <memory>
 #include <vector>
 
-#include <glm/gtx/transform.hpp>
 #include <glm/mat4x4.hpp>
 #include <glm/vec3.hpp>
 
@@ -16,74 +15,32 @@
 #include <vke/util.hpp>
 
 #include "render/chunk/chunk_renderer.hpp"
-#include "render/fonts/font_renderer.hpp"
+#include "render/texts/text_renderer.hpp"
 
 #include "game/chunk.hpp"
+#include "game/player.hpp"
 #include "game/world.hpp"
-
-class Player
-{
-public:
-    void update(vke::Core& core, float delta_t)
-    {
-        pitch += core.mouse_delta().y * mouse_speed;
-        yaw -= core.mouse_delta().x * mouse_speed;
-
-        pitch = std::clamp(pitch, glm::radians(-89.f), glm::radians(89.f));
-
-        dir = {
-            cos(yaw) * cos(pitch), // x
-            sin(pitch),            // y
-            sin(yaw) * cos(pitch), // z
-        };
-
-        glm::vec3 move_vector = {};
-
-        if (core.is_key_pressed('a')) move_vector.z += 1.f;
-        if (core.is_key_pressed('d')) move_vector.z -= 1.f;
-        if (core.is_key_pressed('w')) move_vector.x += 1.f;
-        if (core.is_key_pressed('s')) move_vector.x -= 1.f;
-        if (core.is_key_pressed(' ')) move_vector.y += 1.f;
-        if (core.is_key_pressed('c')) move_vector.y -= 1.f;
-
-        move_vector = glm::vec3(dir.x, 0.f, dir.z) * move_vector.x +  //
-                      glm::vec3(dir.z, 0.f, -dir.x) * move_vector.z + //
-                      glm::vec3(0.f, move_vector.y, 0.f);
-
-        pos += move_vector * delta_t;
-    }
-
-    glm::mat4 view()
-    {
-        return glm::lookAt(pos, pos + dir, glm::vec3(0.f, 1.f, 0.f));
-    }
-
-public:
-    glm::vec3 pos = {}, dir = {};
-    float pitch = 0, yaw = 0;
-    float mouse_speed = 0.05;
-};
-
-class Camera
-{
-public:
-    glm::mat4 proj(vke::Core& core)
-    {
-        auto proj = glm::perspective(fov, static_cast<float>(core.width()) / static_cast<float>(core.height()), near, far);
-        proj[1][1] *= -1.f;
-        return proj;
-    }
-
-public:
-    float fov = 70.f, near = 0.1, far = 400.f;
-};
 
 class App
 {
 public:
     App()
     {
-        m_core      = std::make_unique<vke::Core>(1280, 720, "minecraft clone");
+        m_core = std::make_unique<vke::Core>(1280, 720, "minecraft clone");
+
+        auto gpass = [&] {
+            auto builder         = vke::RenderPassBuilder();
+            uint32_t albedo_spec = builder.add_attachment(VK_FORMAT_R8G8B8A8_SRGB, VkClearValue{.color{1.f, 1.f, 1.f, 0.f}});
+            uint32_t normal      = builder.add_attachment(VK_FORMAT_R16G16B16A16_UNORM, VkClearValue{.color{0.5f, 0.5f, 0.5f, 0.f}});
+            uint32_t depth       = builder.add_attachment(VK_FORMAT_D32_SFLOAT, VkClearValue{.depthStencil = {.depth = 1.f}});
+            uint32_t swc         = builder.add_swapchain_attachment(m_core.get(), VkClearValue{.color = {1.f, 1.f, 1.f}});
+            builder.add_subpass({albedo_spec,normal}, depth);
+            builder.add_subpass({swc}, std::nullopt, {albedo_spec, normal,depth});
+
+            return builder.build(m_core.get(), m_core->width(), m_core->height());
+        }();
+        gpass->clean();
+
         m_main_pass = [&] {
             auto builder = vke::RenderPassBuilder();
 
@@ -93,6 +50,8 @@ public:
 
             return builder.build(m_core.get(), m_core->width(), m_core->height());
         }();
+
+        
 
         m_lifetime_pool = std::make_unique<vke::DescriptorPool>(m_core->device());
 
@@ -107,7 +66,7 @@ public:
     ~App()
     {
         m_chunk_renderer->cleanup();
-        m_fontrenderer->cleanup();
+        m_textrenderer->cleanup();
         m_main_pass->clean();
         m_lifetime_pool->clean();
 
@@ -155,11 +114,11 @@ private:
             }
         }
 
-        if (m_fontrenderer == nullptr)
+        if (m_textrenderer == nullptr)
         {
-            m_fontrenderer = std::make_unique<FontRenderer>(m_core.get(), m_lifetime_pool.get(), cmd, cleanup_queue);
-            m_fontrenderer->register_renderpass(m_main_pass.get(), 0);
-            m_text         = m_fontrenderer->mesh_string("const std::string &stringga");
+            m_textrenderer = std::make_unique<TextRenderer>(m_core.get(), m_lifetime_pool.get(), cmd, cleanup_queue);
+            m_textrenderer->register_renderpass(m_main_pass.get(), 0);
+            m_text = m_textrenderer->mesh_string("const std::string &stringga");
         }
 
         for (auto c : m_world->get_updated_chunks())
@@ -175,7 +134,9 @@ private:
 
         m_chunk_renderer->render(cmd, m_main_pass.get(), 0, proj_view);
 
-        m_fontrenderer->render_text(cmd, m_main_pass.get(), m_text.get(), glm::vec2(-0.8f, 0.f), glm::vec2(10.f, 10.f) / m_main_pass->size());
+        m_textrenderer->render_text_px(m_main_pass.get(), "const std::\nString &s", glm::vec2(20.f, 25.f), glm::vec2(16.f, 16.f));
+
+        m_textrenderer->render(cmd, m_main_pass.get());
 
         m_main_pass->end(cmd);
     }
@@ -185,7 +146,7 @@ private:
     std::unique_ptr<vke::RenderPass> m_main_pass;
     std::unique_ptr<vke::DescriptorPool> m_lifetime_pool;
     std::unique_ptr<World> m_world;
-    std::unique_ptr<FontRenderer> m_fontrenderer;
+    std::unique_ptr<TextRenderer> m_textrenderer;
     std::unique_ptr<vke::Buffer> m_text;
 
     std::unique_ptr<ChunkRenderer> m_chunk_renderer;

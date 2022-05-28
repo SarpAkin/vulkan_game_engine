@@ -1,4 +1,4 @@
-#include "font_renderer.hpp"
+#include "text_renderer.hpp"
 
 #include <glm/vec2.hpp>
 #include <glm/vec4.hpp>
@@ -8,13 +8,6 @@
 namespace
 {
 
-struct FontVert
-{
-    glm::vec2 pos;
-    glm::vec2 uv;
-    REFLECT_VERTEX_INPUT_DESCRIPTION(FontVert, pos, uv);
-};
-
 struct Push
 {
     glm::vec2 pos;
@@ -23,9 +16,15 @@ struct Push
 };
 } // namespace
 
+struct TextRenderer::FontVert
+{
+    glm::vec2 pos;
+    glm::vec2 uv;
+    REFLECT_VERTEX_INPUT_DESCRIPTION(FontVert, pos, uv);
+};
 extern uint64_t ascii8x8[128];
 
-FontRenderer::FontRenderer(vke::Core* core, vke::DescriptorPool* pool, VkCommandBuffer cmd, std::vector<std::function<void()>>& cleanup_queue)
+TextRenderer::TextRenderer(vke::Core* core, vke::DescriptorPool* pool, VkCommandBuffer cmd, std::vector<std::function<void()>>& cleanup_queue)
 {
     m_core = core;
 
@@ -64,9 +63,14 @@ FontRenderer::FontRenderer(vke::Core* core, vke::DescriptorPool* pool, VkCommand
     cleanup_queue.push_back([buffer = std::shared_ptr(std::move(buffer))]() mutable {
         buffer->clean_up();
     });
+
+    for (auto& buf : m_internal_fontbufs)
+    {
+        buf = core->allocate_buffer(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, MAX_CHARS * sizeof(FontVert) * 6, true);
+    }
 }
 
-void FontRenderer::cleanup()
+void TextRenderer::cleanup()
 {
     auto device = m_core->device();
 
@@ -80,9 +84,14 @@ void FontRenderer::cleanup()
     vkDestroyDescriptorSetLayout(device, m_texture_set_layout, nullptr);
 
     m_font_texture->clean_up();
+
+    for (auto& buf : m_internal_fontbufs)
+    {
+        buf->clean_up();
+    }
 }
 
-void FontRenderer::register_renderpass(vke::RenderPass* renderpass, int subpass)
+void TextRenderer::register_renderpass(vke::RenderPass* renderpass, int subpass)
 {
     m_pipelines[renderpass] = Pipelines{
         .font_renderer2D = [&] {
@@ -91,7 +100,7 @@ void FontRenderer::register_renderpass(vke::RenderPass* renderpass, int subpass)
             builder.pipeline_layout = m_pipelinelayout;
             builder.set_depth_testing(false);
             builder.set_topology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
-            builder.set_rasterization(VK_POLYGON_MODE_FILL, VK_CULL_MODE_BACK_BIT);
+            builder.set_rasterization(VK_POLYGON_MODE_FILL, VK_CULL_MODE_NONE);
             builder.add_shader_stage(VK_SHADER_STAGE_FRAGMENT_BIT, /**/ LOAD_LOCAL_SHADER_MODULE(m_core->device(), "font.frag").value());
             builder.add_shader_stage(VK_SHADER_STAGE_VERTEX_BIT, /****/ LOAD_LOCAL_SHADER_MODULE(m_core->device(), "font.vert").value());
 
@@ -100,42 +109,104 @@ void FontRenderer::register_renderpass(vke::RenderPass* renderpass, int subpass)
     };
 }
 
-std::unique_ptr<vke::Buffer> FontRenderer::mesh_string(const std::string& string)
+void TextRenderer::mesh_string_into_buffer(FontVert*& it, FontVert* vert_buf_end, const std::string& string)
 {
-    auto buf = m_core->allocate_buffer(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, sizeof(FontVert) * 6 * (string.size()  +1), true);
-
-    auto it       = buf->get_data<FontVert>();
-    float cursorx = 0.f;
+    glm::vec2 cursor = {0.f, 0.f};
 
     const float ATLAS_SIZE      = 128.f;
     const glm::vec2 square_size = {1.f, 1.f / ATLAS_SIZE};
 
     for (uint8_t c : string)
     {
-        if (c > 127)
+        if (c > 127) continue;
+        if (c == '\n')
         {
-            c = 0;
+            cursor.x = 0.f;
+            cursor.y += 8.f;
+            continue;
+        }
+        if (c == ' ' || c == '\t')
+        {
+            cursor.x += c == '\t' ? 32.f : 8.f;
+            continue;
         }
 
         glm::vec2 base_uv = {0.f, c / ATLAS_SIZE};
 
-        it[0] = FontVert{.pos = {cursorx + 0.f, 00.f}, .uv = base_uv + glm::vec2(0.f, 0.f)},
-        it[1] = FontVert{.pos = {cursorx + 0.f, -8.f}, .uv = base_uv + glm::vec2(0.f, square_size.y)},
-        it[2] = FontVert{.pos = {cursorx + 8.f, 00.f}, .uv = base_uv + glm::vec2(square_size.x, 0.f)},
-        it[5] = FontVert{.pos = {cursorx + 8.f, -8.f}, .uv = base_uv + glm::vec2(square_size.x, square_size.y)},
+        if (it + 6 > vert_buf_end)
+            return;
+
+        it[0] = FontVert{.pos = cursor + glm::vec2(0.f, 00.f), .uv = base_uv + glm::vec2(0.f, 0.f)},
+        it[1] = FontVert{.pos = cursor + glm::vec2(0.f, -8.f), .uv = base_uv + glm::vec2(0.f, square_size.y)},
+        it[2] = FontVert{.pos = cursor + glm::vec2(8.f, 00.f), .uv = base_uv + glm::vec2(square_size.x, 0.f)},
+        it[5] = FontVert{.pos = cursor + glm::vec2(8.f, -8.f), .uv = base_uv + glm::vec2(square_size.x, square_size.y)},
 
         it[3] = it[2];
         it[4] = it[1];
 
-        cursorx += 8.f;
+        cursor.x += 8.f;
 
         it += 6;
     }
+}
+
+void TextRenderer::render_text(vke::RenderPass* render_pass, const std::string& s, glm::vec2 pos, glm::vec2 scale)
+{
+    auto& text_buf = m_internal_fontbufs[m_core->frame_index()];
+
+    auto it       = text_buf->get_data<FontVert>() + m_vert_counter;
+    auto it_start = it;
+    mesh_string_into_buffer(it, text_buf->get_data_end<FontVert>(), s);
+    uint32_t vert_count = it - it_start;
+    m_vert_counter += vert_count;
+    m_text_args.push_back(TextArgs{
+        .render_pass = render_pass,
+        .vert_count  = vert_count,
+        .vert_offset = static_cast<uint32_t>(it_start - text_buf->get_data<FontVert>()),
+        .pos         = pos,
+        .scale       = scale,
+        .color       = glm::vec4(0.2f, 0.2f, 0.2f, 1.f),
+    });
+}
+
+std::unique_ptr<vke::Buffer> TextRenderer::mesh_string(const std::string& string)
+{
+    auto buf = m_core->allocate_buffer(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, sizeof(FontVert) * 6 * (string.size() + 1), true);
+
+    auto it = buf->get_data<FontVert>();
+    mesh_string_into_buffer(it, it + (string.size() * 6), string);
 
     return buf;
 }
 
-void FontRenderer::render_text(VkCommandBuffer cmd, vke::RenderPass* render_pass, const vke::Buffer* mesh, glm::vec2 pos, glm::vec2 scale)
+void TextRenderer::render(VkCommandBuffer cmd, vke::RenderPass* render_pass)
+{
+    const auto& pipelines = m_pipelines[render_pass];
+
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines.font_renderer2D);
+    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelinelayout, 0, 1, &m_texture_set, 0, nullptr);
+
+    VkDeviceSize offset = 0;
+    vkCmdBindVertexBuffers(cmd, 0, 1, &m_internal_fontbufs[m_core->frame_index()]->buffer(), &offset);
+
+    for(auto& text_arg : m_text_args)
+    {
+        if(text_arg.render_pass != render_pass) continue;
+
+        Push push{
+            .pos   = text_arg.pos,
+            .scale = text_arg.scale,
+            .color = text_arg.color,
+        };
+        vkCmdPushConstants(cmd, m_pipelinelayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(Push), &push);
+
+        vkCmdDraw(cmd, text_arg.vert_count, 1, text_arg.vert_offset, 0);
+    }
+    m_text_args.resize(0);
+    m_vert_counter = 0;
+}
+
+void TextRenderer::render_textbuf(VkCommandBuffer cmd, vke::RenderPass* render_pass, const vke::Buffer* mesh, glm::vec2 pos, glm::vec2 scale)
 {
     const auto& pipelines = m_pipelines[render_pass];
 

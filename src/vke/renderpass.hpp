@@ -38,6 +38,7 @@ public:
         VkImageView view;
         bool external;
         bool swap_chain_attachment;
+        bool is_input_attachment;
     };
 
     RenderPass(RenderPassArgs args);

@@ -15,7 +15,8 @@ namespace vke
 struct RenderPassBuilder::SubpassDesc
 {
     std::vector<VkAttachmentReference> attachments;
-    std::unique_ptr<VkAttachmentReference> dp_ref;
+    std::unique_ptr<VkAttachmentReference> depth_attachment;
+    std::vector<VkAttachmentReference> input_attachments;
     VkSubpassDescription description;
 };
 
@@ -61,11 +62,9 @@ uint32_t RenderPassBuilder::add_swapchain_attachment(Core* core, std::optional<V
     return index;
 }
 
-
-
 void RenderPassBuilder::add_subpass(const std::vector<uint32_t>& attachments_ids, const std::optional<uint32_t>& depth_stencil_attachment, const std::vector<uint32_t>& input_attachments)
 {
-    assert(input_attachments.size() == 0 && "input attachments are'nt supported right now");
+    // assert(input_attachments.size() == 0 && "input attachments are'nt supported right now");
 
     m_subpasses.emplace_back();
     auto& subpass = m_subpasses.back();
@@ -77,20 +76,29 @@ void RenderPassBuilder::add_subpass(const std::vector<uint32_t>& attachments_ids
         };
     });
 
+    subpass.input_attachments = map_vec(input_attachments, [&](uint32_t attachment_index) {
+        return VkAttachmentReference{
+            .attachment = attachment_index,
+            .layout     = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        };
+    });
+
     subpass.description = VkSubpassDescription{
         .pipelineBindPoint    = VK_PIPELINE_BIND_POINT_GRAPHICS,
+        .inputAttachmentCount = static_cast<uint32_t>(subpass.input_attachments.size()),
+        .pInputAttachments    = subpass.input_attachments.data(),
         .colorAttachmentCount = static_cast<uint32_t>(subpass.attachments.size()),
         .pColorAttachments    = subpass.attachments.data(),
     };
 
     if (depth_stencil_attachment)
     {
-        subpass.dp_ref = std::make_unique<VkAttachmentReference>(VkAttachmentReference{
+        subpass.depth_attachment = std::make_unique<VkAttachmentReference>(VkAttachmentReference{
             .attachment = *depth_stencil_attachment,
             .layout     = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
         });
 
-        subpass.description.pDepthStencilAttachment = subpass.dp_ref.get();
+        subpass.description.pDepthStencilAttachment = subpass.depth_attachment.get();
     }
 }
 
@@ -108,6 +116,117 @@ std::unique_ptr<RenderPass> RenderPassBuilder::build(Core* core, uint32_t width,
 {
     assert(core);
 
+    auto dependencies = std::vector<VkSubpassDependency>();
+
+    auto attachement_uses = std::vector<int>(m_attachments.size(), -1);
+
+    auto rp_args_att = map_vec(m_attachments, [](const VkAttachmentDescription& des) {
+        return RenderPass::Attachments{
+            .format = des.format,
+            .layout = des.finalLayout,
+        };
+    });
+
+    for (uint32_t i = 0; i < m_subpasses.size(); ++i)
+    {
+        auto& subpass = m_subpasses[i];
+
+        for (auto& att : subpass.attachments)
+        {
+            int& att_use = attachement_uses[att.attachment];
+            if (att_use == -1)
+            {
+                att_use = i;
+            }
+            else
+            {
+                dependencies.push_back(VkSubpassDependency{
+                    .srcSubpass      = static_cast<uint32_t>(att_use),
+                    .dstSubpass      = i,
+                    .srcStageMask    = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                    .dstStageMask    = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                    .srcAccessMask   = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+                    .dstAccessMask   = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+                    .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT,
+                });
+            }
+        }
+
+        if (subpass.depth_attachment)
+        {
+            auto& att    = *subpass.depth_attachment;
+            int& att_use = attachement_uses[att.attachment];
+            if (att_use == -1)
+            {
+                att_use = i;
+            }
+            else
+            {
+                dependencies.push_back(VkSubpassDependency{
+                    .srcSubpass      = static_cast<uint32_t>(att_use),
+                    .dstSubpass      = i,
+                    .srcStageMask    = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+                    .dstStageMask    = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+                    .srcAccessMask   = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+                    .dstAccessMask   = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT,
+                    .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT,
+                });
+            }
+        }
+
+        for (auto& input_att : subpass.input_attachments)
+        {
+            int& att_use   = attachement_uses[input_att.attachment];
+            auto& att_desc = m_attachments[input_att.attachment];
+            bool is_depth  = is_depth_format(att_desc.format);
+
+            rp_args_att[input_att.attachment].is_input_attachment = true;
+
+            if (att_use == -1)
+            {
+                assert("input attachment must be a previously use dattachment" && 0);
+            }
+            else
+            {
+                dependencies.push_back(VkSubpassDependency{
+                    .srcSubpass      = static_cast<uint32_t>(att_use),
+                    .dstSubpass      = i,
+                    .srcStageMask    = is_depth ? (VkPipelineStageFlags)(VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT) : VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                    .dstStageMask    = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                    .srcAccessMask   = is_depth ? VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT : VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+                    .dstAccessMask   = VK_ACCESS_INPUT_ATTACHMENT_READ_BIT,
+                    .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT,
+                });
+            }
+        }
+    }
+
+    dependencies = [&] {
+        auto new_dependencies = std::vector<VkSubpassDependency>();
+
+        for (auto& dep : dependencies)
+        {
+            for (auto& ndep : new_dependencies)
+            {
+                if (ndep.srcSubpass == dep.srcSubpass && ndep.dstSubpass == dep.dstSubpass)
+                {
+                    ndep.srcStageMask |= dep.srcStageMask;
+                    ndep.dstStageMask |= dep.dstStageMask;
+                    ndep.srcAccessMask |= dep.srcAccessMask;
+                    ndep.dstAccessMask |= dep.dstAccessMask;
+                    ndep.dependencyFlags |= dep.dependencyFlags;
+                    goto end;
+                }
+            }
+
+            new_dependencies.push_back(dep);
+            end:;
+        }
+
+        return new_dependencies;
+    }();
+
+
     auto subpassses = map_vec(m_subpasses, [](const SubpassDesc& d) { return d.description; });
 
     VkRenderPassCreateInfo render_pass_info = {
@@ -116,7 +235,8 @@ std::unique_ptr<RenderPass> RenderPassBuilder::build(Core* core, uint32_t width,
         .pAttachments    = m_attachments.data(),
         .subpassCount    = static_cast<uint32_t>(subpassses.size()),
         .pSubpasses      = subpassses.data(),
-
+        .dependencyCount = static_cast<uint32_t>(dependencies.size()),
+        .pDependencies   = dependencies.data(),
     };
 
     VkRenderPass render_pass;
@@ -127,26 +247,19 @@ std::unique_ptr<RenderPass> RenderPassBuilder::build(Core* core, uint32_t width,
         .core        = core,
         .render_pass = render_pass,
         .attachments = [&] {
-            auto vec = map_vec(m_attachments, [](const VkAttachmentDescription& des) {
-                return RenderPass::Attachments{
-                    .format = des.format,
-                    .layout = des.finalLayout,
-                };
-            });
-
             if (m_swapchain_attachment)
             {
-                vec[m_swapchain_attachment->index].external              = true;
-                vec[m_swapchain_attachment->index].swap_chain_attachment = true;
+                rp_args_att[m_swapchain_attachment->index].external              = true;
+                rp_args_att[m_swapchain_attachment->index].swap_chain_attachment = true;
             }
 
-            return vec;
+            return rp_args_att;
         }(),
         .width        = width,
         .height       = height,
         .swc_att      = std::move(m_swapchain_attachment),
         .clear_values = m_clear_values});
-}
+} // namespace vke
 
 RenderPass::RenderPass(RenderPassArgs args)
     : m_core(args.core), m_renderpass(args.render_pass), m_width(args.width), m_height(args.height),
@@ -170,7 +283,8 @@ void RenderPass::create_frame_buffers()
         if (att.external) continue;
 
         auto im = m_core->allocate_image(att.format,
-            is_depth_format(att.format) ? VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT : VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+            (is_depth_format(att.format) ? VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT : VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT) //
+                | (att.is_input_attachment ? VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT : 0),
             m_width, m_height, false);
 
         att.image = im->image;
@@ -248,8 +362,8 @@ void RenderPass::begin(VkCommandBuffer cmd)
     vkCmdSetViewport(cmd, 0, 1, &view_port);
 
     VkRect2D scissor = {
-        .offset = {0,0},
-        .extent = {m_width,m_height},
+        .offset = {0, 0},
+        .extent = {m_width, m_height},
     };
 
     vkCmdSetScissor(cmd, 0, 1, &scissor);

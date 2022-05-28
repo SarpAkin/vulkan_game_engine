@@ -208,6 +208,7 @@ inline void append_mesh_from_groups(Group* group_start, Group* group_end, Quad*&
     quad_it_ = quad_it;
 }
 
+//function table to get rid of branches
 void (*group_mesh_table[])(Group*, Group*, Quad*&, Quad*, size_t) = {
     +[](Group* group_start, Group* group_end, Quad*& quad_it_, Quad* quad_buf_end, size_t plane_index) { append_mesh_from_groups<TileFacing::xp>(group_start, group_end, quad_it_, quad_buf_end, plane_index); },
     +[](Group* group_start, Group* group_end, Quad*& quad_it_, Quad* quad_buf_end, size_t plane_index) { append_mesh_from_groups<TileFacing::xn>(group_start, group_end, quad_it_, quad_buf_end, plane_index); },
@@ -222,9 +223,7 @@ void mesh_plane(const TextureID* plane, TileFacing dir, uint32_t layer, Quad*& q
     Group group_buffers[2][Chunk::chunk_size];
 
     auto append_mesh = group_mesh_table[(int)dir];
-
-    // layer += ((int)dir & 1) == 0;
-
+    
     struct
     {
         Group* buffer;

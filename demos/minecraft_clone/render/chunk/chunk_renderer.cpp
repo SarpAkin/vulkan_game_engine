@@ -26,7 +26,6 @@ ChunkRenderer::ChunkRenderer(vke::Core* core, vke::DescriptorPool& pool, VkComma
 
     m_block_textures = core->load_png("demos/minecraft_clone/textures/tileatlas.png", cmd, init_cleanup_queue);
 
-    fmt::print("aa {}\n", init_cleanup_queue.size());
 
     m_texture_set_layout = vke::DescriptorSetLayoutBuilder().add_image_sampler(VK_SHADER_STAGE_FRAGMENT_BIT).build(core->device());
 

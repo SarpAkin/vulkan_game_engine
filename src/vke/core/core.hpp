@@ -35,6 +35,12 @@ public:
         return reinterpret_cast<T*>(m_mapped_data);
     }
 
+    template <typename T = void>
+    inline T* get_data_end()
+    {
+        return reinterpret_cast<T*>(m_mapped_data) + (m_buffer_size / sizeof(T));
+    }
+
 private:
     VkBuffer m_buffer;
     VmaAllocation m_allocation;
