@@ -5,6 +5,7 @@
 **.sp
 *.ninja*
 .object_files
+.obj_files
 .sprv_files
 res/sprv/embeded.cpp
 .vscode
