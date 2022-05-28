@@ -3,10 +3,7 @@
 #include <glm/mat4x4.hpp>
 #include <glm/vec3.hpp>
 
-namespace vke
-{
-class Core;
-}
+#include <vke/iinput.hpp>
 
 class Player
 {
@@ -16,7 +13,7 @@ public:
     float mouse_speed = 0.05;
 
 public:
-    void update(vke::Core& core, float delta_t);
+    void update(vke::IInput* input, float delta_t);
 
     glm::mat4 view();
 };
@@ -24,7 +21,7 @@ public:
 class Camera
 {
 public:
-    glm::mat4 proj(vke::Core& core);
+    glm::mat4 proj(glm::vec2);
 
 public:
     float fov = 70.f, near = 0.1, far = 400.f;

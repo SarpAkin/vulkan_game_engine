@@ -184,7 +184,7 @@ int main()
     buffer->clean_up();
 
     vkDestroyDescriptorSetLayout(core.device(), set_layout, nullptr);
-    
+
     d_pool.clean();
 
     plane_mesh.vb->clean_up();
@@ -193,8 +193,6 @@ int main()
     vkDestroyPipeline(core.device(), pipeline, nullptr);
 
     renderpass->clean();
-
-
 
     return 0;
 }

@@ -9,6 +9,8 @@
 
 #include <vulkan/vulkan.h>
 
+#include "../iinput.hpp"
+
 struct SDL_Window;
 
 typedef struct VmaAllocator_T* VmaAllocator;
@@ -69,7 +71,7 @@ private:
 
 class RenderPass;
 
-class Core
+class Core : public IInput
 {
 public:
     Core(uint32_t width, uint32_t height, const std::string& app_name);
@@ -100,20 +102,19 @@ public:
     std::unique_ptr<Buffer> allocate_buffer(VkBufferUsageFlagBits usage, uint32_t buffer_size, bool host_visible);
     std::unique_ptr<Image> allocate_image(VkFormat format, VkImageUsageFlags usageFlags, uint32_t width, uint32_t height, bool cpu_read_write);
     std::unique_ptr<Image> load_png(const char* path, VkCommandBuffer cmd, std::vector<std::function<void()>>& cleanup_queue);
-    std::unique_ptr<Image> buffer_to_image(VkCommandBuffer cmd,Buffer* buffer,VkFormat format, VkImageUsageFlags usageFlags, uint32_t width, uint32_t height);
+    std::unique_ptr<Image> buffer_to_image(VkCommandBuffer cmd, Buffer* buffer, VkFormat format, VkImageUsageFlags usageFlags, uint32_t width, uint32_t height);
 
     //
     auto swapchain_image_format() { return m_swapchain_image_format; }
     auto swapchain_image_views() { return m_swapchain_image_views; }
 
-    bool is_key_pressed(uint32_t key) { return m_keystates[key]; }
-    glm::vec2 mouse_delta() { return glm::vec2(m_mouse_delta_x, m_mouse_delta_y); }
+    inline IInput* input() { return dynamic_cast<IInput*>(this); }
 
     auto allocator() { return m_allocator; }
 
     inline void set_window_renderpass(RenderPass* renderpass) { m_window_renderpass = renderpass; };
 
-    inline auto frame_index(){return m_frame_index;}
+    inline auto frame_index() { return m_frame_index; }
 
     struct FrameArgs
     {
@@ -126,6 +127,9 @@ public:
     void run(std::function<void(FrameArgs)>);
 
 private:
+    bool is_key_pressed(uint32_t key) override { return m_keystates[key]; }
+    glm::vec2 mouse_delta() const override { return glm::vec2(m_mouse_delta_x, m_mouse_delta_y); }
+
     void handle_input();
     void draw_frame(float delta_t, std::function<void(FrameArgs)>& frame_func);
 
