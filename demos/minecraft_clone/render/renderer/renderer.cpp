@@ -63,19 +63,6 @@ void VkRenderer::init(VkCommandBuffer cmd, std::vector<std::function<void()>>& c
     m_chunk_renderer = std::make_unique<ChunkRenderer>(m_core.get(), *m_lifetime_pool, cmd, cleanup_queue);
     m_chunk_renderer->register_renderpass(m_main_pass.get(), 0, false);
 
-    for (int i = 0; i < 2; ++i)
-    {
-        auto c = std::make_unique<Chunk>();
-        for (int y = 0; y < 32; ++y)
-        {
-            for (int x = 0; x < 32; ++x)
-            {
-                c->set_block(Tile::grass, x, 4, y);
-            }
-        }
-        m_world->set_chunk(std::move(c), glm::ivec2(i, 0));
-    }
-
     m_textrenderer = std::make_unique<TextRenderer>(m_core.get(), m_lifetime_pool.get(), cmd, cleanup_queue);
     m_textrenderer->register_renderpass(m_main_pass.get(), 0);
 }
@@ -104,9 +91,7 @@ void VkRenderer::frame(std::function<void(float)>& update, vke::Core::FrameArgs&
         m_chunk_renderer->mesh_chunk(c);
     }
 
-    m_player.update(m_core->input(), delta_t);
-
-    glm::mat4 proj_view = m_camera.proj(m_main_pass->size()) * m_player.view();
+    glm::mat4 proj_view = m_game->camera()->proj(m_main_pass->size()) * m_game->player()->view();
 
     m_main_pass->begin(cmd);
 
@@ -119,6 +104,7 @@ void VkRenderer::frame(std::function<void(float)>& update, vke::Core::FrameArgs&
     m_main_pass->end(cmd);
 }
 
+//irenderer.hpp
 std::unique_ptr<IRenderer> IRenderer::crate_vulkan_renderer(Game* game)
 {
     return std::make_unique<VkRenderer>(game);

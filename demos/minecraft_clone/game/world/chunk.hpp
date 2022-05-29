@@ -4,6 +4,8 @@
 #include <inttypes.h>
 #include <memory>
 
+#include <glm/vec2.hpp>
+
 #include <glm/vec3.hpp>
 
 #include <vke/util.hpp>
@@ -26,14 +28,16 @@ public:
     Chunk();
     ~Chunk();
 
+    glm::ivec2 pos()const {return glm::vec2(m_pos_x,m_pos_z);}
+
     Tile get_block(uint32_t x, uint32_t y, uint32_t z) const;
     void set_block(Tile t, uint32_t x, uint32_t y, uint32_t z);
 
     Tile* get_tile_array(uint32_t vertical_chunk);
     const Tile* get_tile_array(uint32_t vertical_chunk) const;
 
-    inline uint32_t x() const { return m_pos_x; }
-    inline uint32_t z() const { return m_pos_z; }
+    inline int32_t x() const { return m_pos_x; }
+    inline int32_t z() const { return m_pos_z; }
 
     inline void set_vertical_chunk(std::unique_ptr<Tile, Free> v_chunk, uint32_t vertical_chunk) { m_vertical_chunks[vertical_chunk] = std::move(v_chunk); }
 
@@ -48,7 +52,7 @@ public:
 
     } m_neighbor = {};
 
-    uint32_t m_pos_x, m_pos_z;
+    int32_t m_pos_x, m_pos_z;
 
 private:
     std::array<std::unique_ptr<Tile, Free>, vertical_chunk_count> m_vertical_chunks;

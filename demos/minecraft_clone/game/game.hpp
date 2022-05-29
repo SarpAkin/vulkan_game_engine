@@ -5,7 +5,7 @@
 #include <vke/iinput.hpp>
 
 #include "player.hpp"
-#include "world.hpp"
+#include "world/world.hpp"
 
 #include "../render/renderer/irenderer.hpp"
 
@@ -15,7 +15,10 @@ public:
     Game();
 
     void run();
-    World* world() { return m_world.get(); }
+    inline World* world() { return m_world.get(); }
+    inline Player* player() { return &m_player; }
+    inline Camera* camera() { return &m_camera; }
+
 private:
     void update(float delta_t);
 

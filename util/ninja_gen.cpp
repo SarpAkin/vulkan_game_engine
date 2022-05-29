@@ -170,7 +170,7 @@ auto find_glsl_files(const std::string& directory)
 int main()
 {
     auto builder          = NinjaBuilder("build.ninja");
-    builder.compile_flags = "-std=c++20 -Ilibs -Ivendor_git/glm -g -O0 -DLANG_CPP -DGLM_FORCE_RADIANS -DGLM_FORCE_DEPTH_ZERO_TO_ONE";
+    builder.compile_flags = "-std=c++20 -fcolor-diagnostics -isystem libs -Ivendor_git/glm -g -O0 -DLANG_CPP -DGLM_FORCE_RADIANS -DGLM_FORCE_DEPTH_ZERO_TO_ONE";
     builder.link_flags    = "-lSDL2 -ldl -lvulkan -lpthread -lfmt";
 
     const char* lib_vke = "bin/vke.a";
@@ -180,6 +180,7 @@ int main()
             return builder.compile_cpp_file(cpp_file);
         });
     };
+    
 
     {
         std::vector<std::string> cpp_files;

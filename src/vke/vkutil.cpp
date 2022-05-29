@@ -48,6 +48,7 @@ const char* vk_result_string(VkResult res)
         case VK_OPERATION_DEFERRED_KHR: return "VK_OPERATION_DEFERRED_KHR";
         case VK_OPERATION_NOT_DEFERRED_KHR: return "VK_OPERATION_NOT_DEFERRED_KHR";
         case VK_RESULT_MAX_ENUM: return "VK_RESULT_MAX_ENUM";
+        default: return "NOT HANDLED VK_RESULT";
     }
     // clang-format on
 }

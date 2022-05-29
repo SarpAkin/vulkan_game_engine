@@ -2,6 +2,7 @@ CC=clang++
 
 build:util/spirv_embeder.out util/ninja_gen.out
 	./util/ninja_gen.out 
+	env CLICOLOR_FORCE=1 > /dev/null
 	ninja
 
 clean:

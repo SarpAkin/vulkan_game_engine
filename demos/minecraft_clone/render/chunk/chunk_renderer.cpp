@@ -11,6 +11,7 @@
 
 #include "chunk_mesher.hpp"
 
+
 namespace
 {
 struct Push
@@ -102,6 +103,17 @@ void ChunkRenderer::register_renderpass(vke::RenderPass* render_pass, int subpas
     };
 }
 
+void ChunkRenderer::delete_chunk(glm::ivec2 chunk_pos)
+{
+    if(auto it = m_chunk_meshes.find(chunk_pos);it != m_chunk_meshes.end()){
+
+        m_frame_cleanup.push_back([buf = std::shared_ptr(std::move(it->second.vert_buffer))] {
+            buf->clean_up();
+        });
+        m_chunk_meshes.erase(it);
+    }
+}
+
 void ChunkRenderer::mesh_chunk(const Chunk* chunk)
 {
     const uint32_t buf_size = 1024 * 64;
@@ -133,10 +145,12 @@ void ChunkRenderer::mesh_chunk(const Chunk* chunk)
     auto gpu_buf     = m_core->allocate_buffer(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, data_size, true);
     memcpy(gpu_buf->get_data(), buf, data_size);
 
-    m_chunk_meshes[chunk] = ChunkMesh{
-        .vert_buffer     = std::move(gpu_buf),
-        .vertical_chunks = std::move(vchunks),
-    };
+    delete_chunk(chunk->pos());
+
+        m_chunk_meshes[chunk->pos()] = ChunkMesh{
+            .vert_buffer     = std::move(gpu_buf),
+            .vertical_chunks = std::move(vchunks),
+        };
 }
 
 void ChunkRenderer::pre_render(VkCommandBuffer cmd, vke::RenderPass* render_pass)
@@ -151,7 +165,7 @@ void ChunkRenderer::render(VkCommandBuffer cmd, vke::RenderPass* render_pass, in
     vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_chunk_playout, 0, 1, &m_texture_set, 0, nullptr);
     vkCmdBindIndexBuffer(cmd, m_quad_indicies->buffer(), 0, VK_INDEX_TYPE_UINT16);
 
-    for (auto& [chunk, mesh] : m_chunk_meshes)
+    for (auto& [chunk_pos, mesh] : m_chunk_meshes)
     {
         VkDeviceSize offsets = 0;
 
@@ -160,7 +174,7 @@ void ChunkRenderer::render(VkCommandBuffer cmd, vke::RenderPass* render_pass, in
         for (auto& vchunk : mesh.vertical_chunks)
         {
             Push push{
-                .mvp = proj_view * glm::translate(glm::vec3(chunk->x(), vchunk.y, chunk->z()) * static_cast<float>(Chunk::chunk_size)),
+                .mvp = proj_view * glm::translate(glm::vec3(chunk_pos.x, vchunk.y, chunk_pos.y) * static_cast<float>(Chunk::chunk_size)),
             };
 
             vkCmdPushConstants(cmd, m_chunk_playout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(Push), &push);

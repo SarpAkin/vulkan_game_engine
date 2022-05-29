@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../../game/chunk.hpp"
+#include "../../game/world/chunk.hpp"
 
 #include <vke/pipeline_builder.hpp>
 

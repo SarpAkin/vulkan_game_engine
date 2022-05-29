@@ -4,6 +4,9 @@
 
 #include <glm/mat4x4.hpp>
 
+#define GLM_ENABLE_EXPERIMENTAL
+#include <glm/gtx/hash.hpp>
+
 #include <vke/core/core.hpp>
 #include <vke/renderpass.hpp>
 
@@ -27,6 +30,7 @@ public:
     void render(VkCommandBuffer cmd, vke::RenderPass* render_pass, int subpass, const glm::mat4& proj_view);
 
     void mesh_chunk(const Chunk* chunk);
+    void delete_chunk(glm::ivec2 chunk_pos);
 
     void cleanup() override;
 
@@ -41,6 +45,8 @@ private:
     VkSampler m_linear_sampler;
 
     VkPipelineLayout m_chunk_playout;
+
+    std::vector<std::function<void()>> m_frame_cleanup;
 
     struct RPData
     {
@@ -61,7 +67,7 @@ private:
         std::vector<VerticalChunk> vertical_chunks;
     };
 
-    std::unordered_map<const Chunk*, ChunkMesh> m_chunk_meshes;
+    std::unordered_map<glm::ivec2, ChunkMesh> m_chunk_meshes;
 
     std::unordered_map<vke::RenderPass*, RPData> m_rpdata; // render pass data
 };

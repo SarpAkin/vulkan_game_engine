@@ -19,9 +19,9 @@
 #include "../chunk/chunk_renderer.hpp"
 #include "../texts/text_renderer.hpp"
 
-#include "../../game/chunk.hpp"
+#include "../../game/world/chunk.hpp"
+#include "../../game/world/world.hpp"
 #include "../../game/player.hpp"
-#include "../../game/world.hpp"
 
 #include "irenderer.hpp"
 
@@ -31,7 +31,7 @@ public:
     VkRenderer(Game* game);
     ~VkRenderer();
 
-    void run(std::function<void(float)>&& update)override;
+    void run(std::function<void(float)>&& update) override;
 
     vke::IInput* input() override { return m_core->input(); }
 
@@ -55,9 +55,6 @@ private:
     };
 
     std::array<FrameData, vke::Core::FRAME_OVERLAP> m_frame_datas;
-
-    Player m_player;
-    Camera m_camera;
 
     bool initialized = false;
 };
