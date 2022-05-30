@@ -57,13 +57,19 @@ Core::Core(uint32_t width, uint32_t height, const std::string& app_name)
 
     // device
     //
-    VkPhysicalDeviceFeatures req_features  = {};
-    req_features.fillModeNonSolid          = true;
-    req_features.multiDrawIndirect         = true;
-    req_features.drawIndirectFirstInstance = true;
+    VkPhysicalDeviceFeatures req_features = {
+        .multiDrawIndirect = true,
+        // .drawIndirectFirstInstance = true,
+        .fillModeNonSolid = true,
+    };
 
-    VkPhysicalDeviceVulkan12Features req_features12 = {};
-    req_features12.drawIndirectCount                = true;
+    VkPhysicalDeviceVulkan11Features req_features11 = {
+        .shaderDrawParameters = true,
+    };
+
+    VkPhysicalDeviceVulkan12Features req_features12 = {
+        .drawIndirectCount = true,
+    };
 
     vkb::PhysicalDeviceSelector selector{m_data->vkb_instance};
 
@@ -72,6 +78,7 @@ Core::Core(uint32_t width, uint32_t height, const std::string& app_name)
         selector
             .set_minimum_version(vk_ver_major, vk_ver_minor)
             .set_required_features(req_features)
+            .set_required_features_11(req_features11)
             .set_required_features_12(req_features12)
             .select()
             .value();

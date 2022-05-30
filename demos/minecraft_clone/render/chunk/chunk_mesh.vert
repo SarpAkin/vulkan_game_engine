@@ -1,5 +1,4 @@
-//we will be using glsl version 4.5 syntax
-#version 450
+#version 460
 
 // #include "../glsl_shared.hpp"
 
@@ -15,12 +14,13 @@ layout (location = 2) out vec3  out_normal;
 layout (push_constant) uniform PushConstants
 {
     mat4 proj_view;
+    uint cpos_offset;
 }push;
 
-// layout(std430,set = 0,binding = 0) readonly buffer DrawBuffer
-// {
-//     ivec3 chunk_poses[];
-// } draw_buffer;
+layout(std430,set = 1,binding = 0) readonly buffer DrawBuffer
+{
+    vec4 chunk_poses[];
+} draw_buffer;
 
 vec2 tex_cords[] = {vec2(1.0,0.0),vec2(1.0,1.0),vec2(2.0,1.0)};
 vec2 atlas_size = vec2(16.0,1.0);
@@ -76,7 +76,7 @@ void main()
     //a block face ranges in -0.5 to 0.5
     position += vec4(-0.5,-0.5,-0.5,0.0);
 
-    // position.xyz += draw_buffer.chunk_poses[gl_InstanceIndex] * 32;
+    position.xyz += draw_buffer.chunk_poses[push.cpos_offset + gl_DrawID].xyz;
 
     gl_Position = push.proj_view * position;
     // gl_Position.y = -gl_Position.y;

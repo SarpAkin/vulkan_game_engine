@@ -51,7 +51,7 @@ private:
 
     struct FrameData
     {
-        std::unique_ptr<vke::DescriptorPool> m_frame_pool;
+        std::unique_ptr<vke::DescriptorPool> pool;
     };
 
     std::array<FrameData, vke::Core::FRAME_OVERLAP> m_frame_datas;

@@ -26,7 +26,7 @@ VkRenderer::VkRenderer(Game* game)
         auto builder = vke::RenderPassBuilder();
 
         uint32_t sw_att = builder.add_swapchain_attachment(m_core.get(), VkClearValue{.color = {1.f, 1.f, 1.f}});
-        uint32_t ds_att = builder.add_attachment(VK_FORMAT_D16_UNORM, VkClearValue{.depthStencil = {.depth = 1.f, .stencil = 0}});
+        uint32_t ds_att = builder.add_attachment(VK_FORMAT_D32_SFLOAT, VkClearValue{.depthStencil = {.depth = 1.f, .stencil = 0}});
         builder.add_subpass({sw_att}, ds_att);
 
         return builder.build(m_core.get(), m_core->width(), m_core->height());
@@ -36,7 +36,7 @@ VkRenderer::VkRenderer(Game* game)
 
     for (auto& frame_data : m_frame_datas)
     {
-        frame_data.m_frame_pool = std::make_unique<vke::DescriptorPool>(m_core->device());
+        frame_data.pool = std::make_unique<vke::DescriptorPool>(m_core->device());
     }
 }
 
@@ -49,7 +49,7 @@ VkRenderer ::~VkRenderer()
 
     for (auto& frame_data : m_frame_datas)
     {
-        frame_data.m_frame_pool->clean();
+        frame_data.pool->clean();
     }
 }
 
@@ -83,7 +83,7 @@ void VkRenderer::frame(std::function<void(float)>& update, vke::Core::FrameArgs&
     update(delta_t);
 
     cleanup_queue.push_back([&] {
-        current_frame.m_frame_pool->reset_pools();
+        current_frame.pool->reset_pools();
     });
 
     for (auto c : m_world->get_updated_chunks())
@@ -95,7 +95,7 @@ void VkRenderer::frame(std::function<void(float)>& update, vke::Core::FrameArgs&
 
     m_main_pass->begin(cmd);
 
-    m_chunk_renderer->render(cmd, m_main_pass.get(), 0, proj_view);
+    m_chunk_renderer->render(cmd, current_frame.pool.get(),m_main_pass.get(), 0, proj_view);
 
     m_textrenderer->render_text_px(m_main_pass.get(), "const std::\nString &s", glm::vec2(20.f, 25.f), glm::vec2(16.f, 16.f));
 
