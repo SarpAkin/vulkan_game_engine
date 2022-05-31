@@ -1,9 +1,11 @@
 #include "pipeline_builder.hpp"
 
+#include <regex>
+
 #include "core/core.hpp"
 #include "renderpass.hpp"
-#include "vkutil.hpp"
 #include "util.hpp"
+#include "vkutil.hpp"
 
 extern const std::unordered_map<std::string, std::pair<const uint32_t*, uint32_t>> embeded_sprvs;
 
@@ -34,10 +36,10 @@ PipelineBuilder::PipelineBuilder()
         .minSampleShading     = 1.0f,
     };
 
-    color_blend_attachment = {
-        .blendEnable    = false,
-        .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
-    };
+    // color_blend_attachment = {
+    //     .blendEnable    = false,
+    //     .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+    // };
 
     vertex_input_info = {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
@@ -99,14 +101,28 @@ std::optional<VkPipeline> PipelineBuilder::build(Core* core, RenderPass* renderp
         .scissorCount  = 1,
     };
 
+    uint32_t att_count = renderpass->get_subpass(subpass_index).attachments.size();
+    if (color_blend_attachment.size() == 0)
+    {
+        color_blend_attachment.resize(att_count,
+            VkPipelineColorBlendAttachmentState{
+                .blendEnable    = false,
+                .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+            });
+    }
+    else
+    {
+        assert(att_count == color_blend_attachment.size());
+    }
+
     VkPipelineColorBlendStateCreateInfo color_blending = {
         .sType           = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
         .pNext           = nullptr,
         .logicOpEnable   = VK_FALSE,
         .logicOp         = VK_LOGIC_OP_COPY,
-        .attachmentCount = 1,
-        .pAttachments    = &color_blend_attachment,
-        
+        .attachmentCount = att_count,
+        .pAttachments    = color_blend_attachment.data(),
+
     };
 
     std::vector<VkDynamicState> dynamic_states = {
@@ -167,12 +183,19 @@ namespace imp
 
 std::optional<VkShaderModule> load_shader_module(VkDevice device, const std::string& shader_name)
 {
+    const std::regex re("(\\w+\\/\\.\\.\\/)");
 
-    auto it = embeded_sprvs.find(shader_name);
+    std::string out = shader_name;
+    while (std::regex_search(out, re))
+    {
+        out = std::regex_replace(out, re, "");
+    }
+
+    auto it = embeded_sprvs.find(out);
 
     if (it == embeded_sprvs.end())
     {
-        fmt::print(stderr, "no shader at {} module\n", shader_name);
+        fmt::print(stderr, "no shader at {} module\n", out);
         return std::nullopt;
     }
 

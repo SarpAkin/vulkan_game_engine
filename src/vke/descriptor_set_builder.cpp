@@ -36,12 +36,19 @@ VkDescriptorSetLayout DescriptorSetLayoutBuilder::build(VkDevice device)
 
 DescriptorSetBuilder& DescriptorSetBuilder::add_buffer(std::vector<const Buffer*> buffer, VkShaderStageFlags stage, VkDescriptorType type)
 {
+    return add_buffer(map_vec(buffer, [](const Buffer* b) { return std::make_tuple(b, 0U, static_cast<uint32_t>(b->size())); }), stage, type);
+}
+
+DescriptorSetBuilder& DescriptorSetBuilder::add_buffer(std::vector<std::tuple<const Buffer*,uint32_t,uint32_t>> buffer, VkShaderStageFlags stage, VkDescriptorType type)
+{
     m_buffer_bindings.push_back(BufferBinding{
-        .buffer_infos = map_vec(buffer, [&](const Buffer* buffer) {
+        .buffer_infos = map_vec(buffer, [&](std::tuple<const Buffer*, uint32_t, uint32_t>& tuple) {
+            auto& [buffer,offset,size] = tuple;
+
             return VkDescriptorBufferInfo{
                 .buffer = buffer->buffer(),
-                .offset = 0,
-                .range  = buffer->size(),
+                .offset = offset,
+                .range  = size,
             };
         }),
         .binding      = m_counter++,

@@ -33,7 +33,7 @@ uint32_t RenderPassBuilder::add_attachment(VkFormat format, std::optional<VkClea
     m_attachments.push_back(VkAttachmentDescription{
         .format         = format,
         .samples        = VK_SAMPLE_COUNT_1_BIT,
-        .loadOp         = clear_value ? VK_ATTACHMENT_LOAD_OP_CLEAR : VK_ATTACHMENT_LOAD_OP_LOAD,
+        .loadOp         = clear_value ? VK_ATTACHMENT_LOAD_OP_CLEAR : VK_ATTACHMENT_LOAD_OP_DONT_CARE,
         .storeOp        = VK_ATTACHMENT_STORE_OP_STORE,
         .stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
         .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
@@ -106,10 +106,11 @@ struct RenderPassArgs
 {
     Core* core;
     VkRenderPass render_pass;
-    std::vector<RenderPass::Attachments> attachments;
+    std::vector<RenderPass::Attachmen> attachments;
     uint32_t width, height;
     std::optional<RenderPassBuilder::SwapChainAttachment> swc_att;
     std::vector<VkClearValue> clear_values;
+    std::vector<RenderPass::Subpass> subpasses;
 };
 
 std::unique_ptr<RenderPass> RenderPassBuilder::build(Core* core, uint32_t width, uint32_t height)
@@ -121,7 +122,7 @@ std::unique_ptr<RenderPass> RenderPassBuilder::build(Core* core, uint32_t width,
     auto attachement_uses = std::vector<int>(m_attachments.size(), -1);
 
     auto rp_args_att = map_vec(m_attachments, [](const VkAttachmentDescription& des) {
-        return RenderPass::Attachments{
+        return RenderPass::Attachmen{
             .format = des.format,
             .layout = des.finalLayout,
         };
@@ -220,12 +221,11 @@ std::unique_ptr<RenderPass> RenderPassBuilder::build(Core* core, uint32_t width,
             }
 
             new_dependencies.push_back(dep);
-            end:;
+        end:;
         }
 
         return new_dependencies;
     }();
-
 
     auto subpassses = map_vec(m_subpasses, [](const SubpassDesc& d) { return d.description; });
 
@@ -258,13 +258,26 @@ std::unique_ptr<RenderPass> RenderPassBuilder::build(Core* core, uint32_t width,
         .width        = width,
         .height       = height,
         .swc_att      = std::move(m_swapchain_attachment),
-        .clear_values = m_clear_values});
+        .clear_values = m_clear_values,
+        .subpasses    = map_vec(m_subpasses, [&](SubpassDesc& desc) {
+            return RenderPass::Subpass{
+                   .attachments = map_vec(desc.attachments, [&](VkAttachmentReference& d) { return d.attachment; }),
+                   .depth_att   = desc.depth_attachment ? std::make_optional(desc.depth_attachment->attachment) : std::nullopt,
+            };
+           }),
+    });
 } // namespace vke
 
 RenderPass::RenderPass(RenderPassArgs args)
     : m_core(args.core), m_renderpass(args.render_pass), m_width(args.width), m_height(args.height),
-      m_attachments(std::move(args.attachments)), m_clear_values(args.clear_values)
+      m_attachments(std::move(args.attachments)), m_clear_values(args.clear_values), m_subpasses(std::move(args.subpasses))
 {
+    for(int i = 0;i < m_subpasses.size();++i)
+    {
+        m_subpasses[i].render_pass = this;
+        m_subpasses[i].subpass_index = i;
+    }
+
     if (args.swc_att)
     {
         m_swapchain_attachment_index = args.swc_att->index;
@@ -293,7 +306,7 @@ void RenderPass::create_frame_buffers()
         m_images.push_back(std::move(im));
     }
 
-    auto attachment_views = map_vec(m_attachments, [](const Attachments& att) { return att.view; });
+    auto attachment_views = map_vec(m_attachments, [](const Attachmen& att) { return att.view; });
 
     uint32_t framebuffer_size = m_swapchain_image_views.size() != 0 ? m_swapchain_image_views.size() : 1;
     m_framebuffers.resize(framebuffer_size);
@@ -371,6 +384,7 @@ void RenderPass::begin(VkCommandBuffer cmd)
 
 void RenderPass::next_subpass(VkCommandBuffer cmd)
 {
+    vkCmdNextSubpass(cmd, VK_SUBPASS_CONTENTS_INLINE);
 }
 
 void RenderPass::end(VkCommandBuffer cmd)

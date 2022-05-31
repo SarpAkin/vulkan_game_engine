@@ -24,6 +24,18 @@ constexpr uint32_t vk_ver_major = 1;
 constexpr uint32_t vk_ver_minor = 2;
 constexpr uint32_t vk_ver_patch = 0;
 
+inline VKAPI_ATTR VkBool32 VKAPI_CALL debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
+    VkDebugUtilsMessageTypeFlagsEXT messageType,
+    const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
+    void*)
+{
+    auto ms = vkb::to_string_message_severity(messageSeverity);
+    auto mt = vkb::to_string_message_type(messageType);
+    printf("[%s: %s]\n%s\n", ms, mt, pCallbackData->pMessage);
+
+    return VK_FALSE; // Applications must return false here
+}
+
 Core::Core(uint32_t width, uint32_t height, const std::string& app_name)
 {
     m_data = std::make_unique<Core::Data>();
@@ -34,9 +46,11 @@ Core::Core(uint32_t width, uint32_t height, const std::string& app_name)
             .require_api_version(vk_ver_major, vk_ver_minor, vk_ver_patch)
 #ifndef NDEBUG
             .request_validation_layers(true)
-    // .set_debug_callback(validation_callback)
+            // .set_debug_callback(debug_callback)
+            
     // .set_debug_callback_user_data_pointer(m_data)
 #endif
+
             .build()
             .value();
 

@@ -23,14 +23,32 @@ struct RenderPassArgs;
 class RenderPass
 {
 public:
+    struct Attachmen;
+
     struct Subpass
     {
         RenderPass* render_pass;
         std::vector<uint32_t> attachments;
+        std::optional<uint32_t> depth_att;
         uint32_t subpass_index;
+
+        const Attachmen* get_attachment(uint32_t i) const
+        {
+            return &render_pass->m_attachments[i];
+        }
+
+        const Attachmen* get_depth_attachment() const
+        {
+            if (depth_att)
+            {
+                return &render_pass->m_attachments[*depth_att];
+            }
+
+            return nullptr;
+        }
     };
 
-    struct Attachments
+    struct Attachmen
     {
         VkFormat format;
         VkImageLayout layout;
@@ -53,7 +71,9 @@ public:
     {
         if (m_clear_values.size() > index) m_clear_values[index] = val;
     }
-    inline glm::vec2 size(){return glm::vec2(m_width,m_height);}
+    inline glm::vec2 size() { return glm::vec2(m_width, m_height); }
+
+    inline const auto& get_subpass(int index) const { return m_subpasses[index]; }
 
     void clean();
 
@@ -65,7 +85,7 @@ private:
     Core* m_core;
     VkRenderPass m_renderpass;
     uint32_t m_width, m_height;
-    std::vector<Attachments> m_attachments;
+    std::vector<Attachmen> m_attachments;
     std::vector<std::unique_ptr<Image>> m_images;
     std::vector<Subpass> m_subpasses;
     std::vector<VkFramebuffer> m_framebuffers;

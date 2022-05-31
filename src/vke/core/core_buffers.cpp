@@ -7,6 +7,16 @@
 namespace vke
 {
 
+size_t Core::pad_buffer(size_t bsize) const
+{
+    size_t alignment = gpu_allignment();
+    if (bsize > 0)
+    {
+        return (bsize + alignment - 1) & ~(alignment - 1);
+    }
+    return 0;
+}
+
 void Core::init_allocator()
 {
     VmaVulkanFunctions vulkan_functions    = {};
@@ -41,8 +51,8 @@ std::unique_ptr<Buffer> Core::allocate_buffer(VkBufferUsageFlagBits usage, uint3
         .usage = VMA_MEMORY_USAGE_AUTO,
     };
 
-    auto buffer      = std::make_unique<Buffer>();
-    buffer->m_allocator = m_allocator;
+    auto buffer           = std::make_unique<Buffer>();
+    buffer->m_allocator   = m_allocator;
     buffer->m_buffer_size = buffer_size;
 
     VK_CHECK(vmaCreateBuffer(m_allocator, &buffer_info, &alloc_info, &buffer->m_buffer, &buffer->m_allocation, nullptr));

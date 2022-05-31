@@ -63,22 +63,7 @@ private:
     };
 
     std::vector<std::unique_ptr<MeshBuffer>> m_meshbuffers;
-    std::unordered_map<glm::ivec3, MeshBuffer*> m_chunk_meshes;
-
-    // struct VerticalChunk
-    // {
-    //     uint32_t vert_offset;
-    //     uint32_t vert_count;
-    //     int32_t y;
-    // };
-
-    // struct ChunkMesh
-    // {
-    //     std::unique_ptr<vke::Buffer> vert_buffer;
-    //     std::vector<VerticalChunk> vertical_chunks;
-    // };
-
-    // std::unordered_map<glm::ivec2, ChunkMesh> m_chunk_meshes;
+    std::unordered_map<glm::ivec3, MeshBuffer*> m_chunk_meshes; 
 
     struct FrameData{   
         std::unique_ptr<vke::Buffer> chunkpos_buffer;

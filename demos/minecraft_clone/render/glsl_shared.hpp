@@ -1,5 +1,5 @@
-#ifndef BOUND_CHECKS_HPP
-#define BOUND_CHECKS_HPP
+#ifndef GLSL_SHARED_HPP
+#define GLSL_SHARED_HPP
 
 #ifdef LANG_CPP
 
@@ -26,16 +26,7 @@ using vec4 = glm::vec4;
 
 #endif
 
-struct SceneBuffer
-{
-    mat4 proj_view;
-    mat4 shadow_proj_view;
-    vec4 sun_light;
-    vec3 sun_light_dir;
-    float shodow_plane_far;
-    float shadow_bias_max;
-    float shadow_bias_min;
-};
+
 
 struct AABB
 {

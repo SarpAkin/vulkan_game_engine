@@ -80,7 +80,8 @@ public:
     constexpr static int FRAME_OVERLAP = 2;
 
     //
-    inline size_t gpu_allignment() { return 256; }
+    inline size_t gpu_allignment()const { return 256; }
+    size_t pad_buffer(size_t bsize) const;
 
     inline auto instance() { return m_instance; }
     inline auto device() { return m_device; }

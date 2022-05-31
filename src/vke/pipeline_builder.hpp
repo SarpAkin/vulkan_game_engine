@@ -61,7 +61,7 @@ public:
     VkPipelineInputAssemblyStateCreateInfo input_assembly      = {}; //
     VkPipelineRasterizationStateCreateInfo rasterizer          = {}; //
     VkPipelineMultisampleStateCreateInfo multisampling         = {}; ///
-    VkPipelineColorBlendAttachmentState color_blend_attachment = {};
+    std::vector<VkPipelineColorBlendAttachmentState> color_blend_attachment = {};
 
     PipelineBuilder();
 

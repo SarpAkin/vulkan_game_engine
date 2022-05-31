@@ -38,6 +38,6 @@ private:
     std::unordered_map<glm::ivec2, std::unique_ptr<Chunk>> m_chunks;
 
     Player* m_player;
-    glm::vec3 m_player_old_pos = {10000000000.f,100000000.f,100000000.f}; 
+    glm::ivec2 m_player_old_pos = {0xFFF,0xFFF}; 
 
 };

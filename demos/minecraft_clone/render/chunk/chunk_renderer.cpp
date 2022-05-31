@@ -217,10 +217,6 @@ void ChunkRenderer::mesh_chunk(const Chunk* chunk)
     outer_loop_end:;
     }
 
-    // m_chunk_meshes[chunk->pos()] = ChunkMesh{
-    //     .vert_buffer     = std::move(gpu_buf),
-    //     .vertical_chunks = std::move(vchunks),
-    // };
 }
 
 void ChunkRenderer::pre_render(VkCommandBuffer cmd, vke::RenderPass* render_pass)
@@ -277,5 +273,5 @@ void ChunkRenderer::render(VkCommandBuffer cmd, vke::DescriptorPool* frame_pool,
         vkCmdDrawIndexedIndirect(cmd, indirect_buffer->buffer(), counter_beg * sizeof(VkDrawIndexedIndirectCommand), counter - counter_beg, sizeof(VkDrawIndexedIndirectCommand));
     }
 
-    fmt::print("drawn {} chunks with {} draw calls\n", counter, m_meshbuffers.size());
+    // fmt::print("drawn {} chunks with {} draw calls\n", counter, m_meshbuffers.size());
 }

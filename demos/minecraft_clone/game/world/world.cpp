@@ -3,7 +3,6 @@
 #include <fmt/core.h>
 #include <fmt/ranges.h>
 
-
 #include "../player.hpp"
 
 #include "world_gen.hpp"
@@ -84,10 +83,11 @@ void World::update(float delta_t)
 
     std::vector<glm::ivec2> chunks_to_gen;
 
-    if ( glm::distance(m_player->pos, m_player_old_pos) > Chunk::chunk_size)
+    glm::ivec2 player_cpos = glm::floor(glm::vec2(m_player->pos.x, m_player->pos.z) / 32.f);
+
+    if (player_cpos != m_player_old_pos)
     {
-        glm::vec2 player_cpos     = glm::vec2(m_player->pos.x, m_player->pos.z) / static_cast<float>(Chunk::chunk_size);
-        glm::vec2 old_player_cpos = glm::vec2(m_player_old_pos.x, m_player_old_pos.z) / static_cast<float>(Chunk::chunk_size);
+        glm::ivec2 old_player_cpos = m_player_old_pos;
 
         for (int x = -render_distance; x <= render_distance; ++x)
         {
@@ -95,15 +95,18 @@ void World::update(float delta_t)
 
             for (int y = -y_range; y <= y_range; ++y)
             {
-                auto c_pos = player_cpos + glm::vec2(x, y);
+                auto c_pos = player_cpos + glm::ivec2(x, y);
 
                 auto diff = c_pos - old_player_cpos;
                 diff *= diff;
 
                 if (old_render_dist * old_render_dist < diff.x + diff.y)
                 {
-                    if (m_chunks.find(glm::floor(c_pos)) == m_chunks.end())
-                        {chunks_to_gen.push_back(glm::floor(c_pos));}
+                    if (m_chunks.find(c_pos) == m_chunks.end())
+                    {
+                        m_chunks[c_pos] = nullptr;
+                        chunks_to_gen.push_back(c_pos);
+                    }
                 }
             }
         }
@@ -113,13 +116,11 @@ void World::update(float delta_t)
             // fmt::print("generating {}\n", chunks_to_gen.size());
             // fmt::print("chunks: {}",map_vec(chunks_to_gen, [](glm::ivec2& v){return fmt::format("({},{})",v.x,v.y);}));
 
-            m_world_gen->in_chunk_poses.push(chunks_to_gen);
+            m_world_gen->in_chunk_poses.push(std::move(chunks_to_gen));
         }
 
-        m_player_old_pos = m_player->pos;
+        m_player_old_pos = player_cpos;
     }
-
-
 }
 
 std::unordered_set<const Chunk*> World::get_updated_chunks()
