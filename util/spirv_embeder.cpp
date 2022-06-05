@@ -52,11 +52,29 @@ std::string string_replace(const std::string& input_string, std::string find, st
     return ret_string;
 }
 
+std::vector<std::string> file_get_lines(const std::string& filename)
+{
+    auto file = std::ifstream(filename);
+    if (!file.is_open()) throw std::runtime_error(std::string("file: ") + filename + " doesn't exists");
+
+    std::vector<std::string> vec;
+
+    for (std::string line; std::getline(file, line);)
+    {
+        vec.push_back(std::move(line));
+    }
+    return vec;
+}
+
 int main(int argc, const char** argv)
 {
     std::vector<std::pair<std::string, std::string>> files_to_embed;
 
     std::string out_file_name;
+
+    std::vector<std::string> embeds;
+
+    int counter = 0;
 
     for (int i = 1; i < argc; ++i)
     {
@@ -67,19 +85,20 @@ int main(int argc, const char** argv)
             if (size_t pos = out_file_name.rfind(".cpp"); pos != out_file_name.npos)
             {
                 out_file_name.resize(pos);
+                embeds = file_get_lines(out_file_name + ".cpp.embeds");
             }
         }
         else
         {
             std::string sprv_file = argv[i];
-            ++i;
-            std::string glsl_file = argv[i];
+            // ++i;
+            // std::string glsl_file = argv[i];
 
-            files_to_embed.emplace_back(sprv_file, glsl_file);
+            files_to_embed.emplace_back(sprv_file, embeds.at(counter++));
         }
     }
 
-    fmt::print("embdeded files {}\n",files_to_embed);
+    fmt::print("embdeded files {}\n", files_to_embed);
 
     if (out_file_name.size() == 0)
     {

@@ -8,7 +8,8 @@
 
 WorldGen::WorldGen(uint64_t seed) : m_seed(seed) { gen_func_init(); }
 
-namespace  {
+namespace
+{
 
 void iterate_over_layers_in_vchunk(Tile* vchunk, uint32_t y_beg, uint32_t y_end, auto&& func)
 {
@@ -53,7 +54,7 @@ void iterate_over_layers(Chunk* chunk, uint32_t y_beg, uint32_t y_end, auto&& fu
     }
 }
 
-}
+} // namespace
 
 void WorldGen::gen_func_init()
 {
@@ -191,9 +192,9 @@ void WorldGen::gen_func_init()
 
 WorldGen::~WorldGen()
 {
+    m_running = false;
     in_chunk_poses.notify_all();
     out_chunks.notify_all();
-    m_running = false;
 }
 
 void WorldGen::init(int worker_count)
@@ -214,6 +215,7 @@ void WorldGen::worker_func()
         std::vector<std::pair<glm::ivec2, std::unique_ptr<Chunk>>> generated_chunks;
 
         in_chunk_poses.fetch_some_blocking(chunks_to_generate, m_max_batch_size);
+        if (!m_running) return;
 
         for (auto& chunk_to_gen : chunks_to_generate)
         {

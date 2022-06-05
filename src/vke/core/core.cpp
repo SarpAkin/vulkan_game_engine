@@ -46,8 +46,9 @@ Core::Core(uint32_t width, uint32_t height, const std::string& app_name)
             .require_api_version(vk_ver_major, vk_ver_minor, vk_ver_patch)
 #ifndef NDEBUG
             .request_validation_layers(true)
-            // .set_debug_callback(debug_callback)
-            
+            // .use_default_debug_messenger()
+            .set_debug_callback(debug_callback)
+
     // .set_debug_callback_user_data_pointer(m_data)
 #endif
 
@@ -128,6 +129,8 @@ Core::~Core()
     cleanup_allocator();
 
     vkDestroyDevice(m_device, nullptr);
+
+    vkb::destroy_debug_utils_messenger(m_instance, m_data->vkb_instance.debug_messenger);
     vkDestroyInstance(m_instance, nullptr);
 }
 
@@ -257,54 +260,7 @@ void Core::run(std::function<void(FrameArgs)> frame_draw)
     }
 }
 
-void Core::handle_input()
-{
-    m_mouse_delta_x = m_mouse_delta_y = 0;
 
-    SDL_Event e;
-    while (SDL_PollEvent(&e))
-    {
-        switch (e.type)
-        {
-        case SDL_QUIT:
-            m_running = false;
-            break;
-        case SDL_KEYDOWN:
-            m_keystates[e.key.keysym.sym] = true;
-            if (auto it = m_on_key_down.find(e.key.keysym.sym); it != m_on_key_down.end()) it->second();
-            break;
-        case SDL_KEYUP:
-            m_keystates[e.key.keysym.sym] = false;
-            break;
-
-        case SDL_MOUSEBUTTONDOWN:
-            m_mouse_button_states[e.button.button] = true;
-            if (auto it = m_on_mouse_click.find(e.button.button); it != m_on_mouse_click.end()) it->second();
-
-            break;
-
-        case SDL_MOUSEBUTTONUP:
-            m_mouse_button_states[e.button.button] = false;
-            break;
-        case SDL_MOUSEMOTION:
-
-            m_mouse_delta_x = m_mouse_x - e.motion.x;
-            m_mouse_delta_y = m_mouse_y - e.motion.y;
-
-            m_mouse_x = e.motion.x;
-            m_mouse_y = e.motion.y;
-            break;
-        }
-    }
-
-    if (m_mouse_captured)
-    {
-
-        SDL_WarpMouseInWindow(m_window, width() / 2, height() / 2);
-        m_mouse_x = (float)width() / 2;
-        m_mouse_y = (float)height() / 2;
-    }
-}
 
 void Core::draw_frame(float delta_t, std::function<void(FrameArgs)>& frame_func)
 {

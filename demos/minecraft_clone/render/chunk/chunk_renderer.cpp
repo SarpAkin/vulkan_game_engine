@@ -156,9 +156,9 @@ void ChunkRenderer::register_renderpass(vke::RenderPass* render_pass, int subpas
             builder.set_depth_testing(true);
             builder.set_topology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
             builder.pipeline_layout = m_chunk_playout;
-            builder.set_rasterization(VK_POLYGON_MODE_FILL, VK_CULL_MODE_BACK_BIT);
-            builder.add_shader_stage(VK_SHADER_STAGE_FRAGMENT_BIT, LOAD_LOCAL_SHADER_MODULE(m_core->device(), "chunk_mesh.frag").value());
-            builder.add_shader_stage(VK_SHADER_STAGE_VERTEX_BIT, LOAD_LOCAL_SHADER_MODULE(m_core->device(), "chunk_mesh.vert").value());
+            builder.set_rasterization(VK_POLYGON_MODE_FILL, shadow ? VK_CULL_MODE_BACK_BIT : VK_CULL_MODE_BACK_BIT);
+            builder.add_shader_stage(VK_SHADER_STAGE_VERTEX_BIT, LOAD_LOCAL_SHADER_MODULE(m_core->device(), (shadow ? "chunk_mesh.vert.DSHADOW_PASS" : "chunk_mesh.vert")).value());
+            if(!shadow) builder.add_shader_stage(VK_SHADER_STAGE_FRAGMENT_BIT, LOAD_LOCAL_SHADER_MODULE(m_core->device(), "chunk_mesh.frag").value());
 
             return builder.build(m_core, render_pass, subpass).value();
         }(),

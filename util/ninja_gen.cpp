@@ -1,4 +1,6 @@
 #include <filesystem>
+#include <fstream>
+#include <regex>
 #include <string>
 #include <vector>
 
@@ -46,6 +48,14 @@ auto map_vec(auto&& vec, auto&& func)
     return ret_vec;
 }
 
+std::string read_file(const std::string& filename)
+{
+    auto input_file = std::ifstream(filename);
+    if (!input_file) throw std::runtime_error(fmt::format("couldn't open file: {}", filename));
+
+    return std::string(std::istreambuf_iterator<char>(input_file), std::istreambuf_iterator<char>());
+}
+
 const char* compile_rule     = "compile";
 const char* link_rule        = "link";
 const char* glslc_rule       = "glc";
@@ -74,21 +84,43 @@ public:
 
             std::string embed_name = spirv_file;
 
-            spirv_file = spirv_dir + spirv_file + ".sp";
+            spirv_file = spirv_dir + spirv_file;
 
-            m_file.print("build {}:{} {}\n  glflags= {}\n", spirv_file, glslc_rule, glsl_file, glslc_flags);
+            std::regex re("\\[variant\\[(\\w+)\\]\\]");
+            auto file_data = read_file(glsl_file);
+            for (auto it = std::sregex_iterator(file_data.begin(), file_data.end(), re); it != std::sregex_iterator(); ++it)
+            {
+                auto match  = *it;
+                auto define = match[1].str();
+                fmt::print("found variant {}\n", define);
+                auto spirv_variant = fmt::format("{}.{}.sp", spirv_file, define);
+                m_file.print("build {}:{} {}\n  glflags= {}\n", spirv_variant, glslc_rule, glsl_file, fmt::format("{} -D{}", glslc_flags, define));
+
+                m_glsl_files.push_back(CompiledGlsl{
+                    .spirv_file = spirv_variant,
+                    .embed_name = fmt::format("{}.D{}", glsl_file, define),
+                });
+            }
+
+            m_file.print("build {}:{} {}\n  glflags= {}\n", spirv_file + ".sp", glslc_rule, glsl_file, glslc_flags);
 
             m_glsl_files.push_back(CompiledGlsl{
-                .spirv_file = spirv_file,
-                .embed_name = glsl_file});
+                .spirv_file = spirv_file + ".sp",
+                .embed_name = glsl_file,
+            });
         }
 
         auto embed(const std::string& embeded_cpp_file)
         {
             m_file.print("build {}:{} ", embeded_cpp_file, spirv_embed_rule);
 
+            auto embeds = fmt::output_file(embeded_cpp_file + ".embeds");
+
             for (auto& glsl_file : m_glsl_files)
-                m_file.print("{} {} ", glsl_file.spirv_file, glsl_file.embed_name);
+            {
+                m_file.print("{} ", glsl_file.spirv_file);
+                embeds.print("{}\n", glsl_file.embed_name);
+            }
 
             m_file.print("\n");
 
@@ -117,7 +149,7 @@ public:
         m_file.print("rule {}\n  deps= gcc\n  depfile= $out.d\n  command= $compiler $cflags -MMD -MF $out.d -c $in -o $out\n", compile_rule);
         m_file.print("rule {}\n  command= $compiler $cflags $ldflags $in -o $out\n", link_rule);
         m_file.print("rule {}\n  deps= gcc\n  depfile= $out.d\n  command= {} -MD -MF $out.d $glflags $in -o $out && spirv-opt -Os $out -o $out\n", glslc_rule, glslc_compiler);
-        m_file.print("rule {}\n  command= {} $in -o $out\n", spirv_embed_rule, spirv_embeder);
+        m_file.print("rule {}\n  command= {} -o $out $in\n", spirv_embed_rule, spirv_embeder);
         m_file.print("rule {}\n  command= ar rcs $out $in\n", stlib_rule);
     }
 
@@ -180,7 +212,6 @@ int main()
             return builder.compile_cpp_file(cpp_file);
         });
     };
-    
 
     {
         std::vector<std::string> cpp_files;
@@ -219,7 +250,7 @@ int main()
 
         builder.build_executable(exec_name, fmt::format("{}", fmt::join(obj_files, " ")));
     };
-    
+
     // compile_sub_project("demos/plane_and_cam/", "bin/1.out");
     // compile_sub_project("demos/portals/", "bin/portals.out");
     compile_sub_project("demos/minecraft_clone/", "bin/mc.out");

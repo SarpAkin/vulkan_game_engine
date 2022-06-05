@@ -128,8 +128,10 @@ public:
     void run(std::function<void(FrameArgs)>);
 
 private:
-    bool is_key_pressed(uint32_t key) override { return m_keystates[key]; }
-    glm::vec2 mouse_delta() const override { return glm::vec2(m_mouse_delta_x, m_mouse_delta_y); }
+    bool is_key_pressed(uint32_t key) override;
+    glm::vec2 mouse_delta() const override;
+    void set_key_callback(uint32_t key, std::function<void()> f, void* owner) override;
+    void remove_key_callback(uint32_t key, void* owner) override;
 
     void handle_input();
     void draw_frame(float delta_t, std::function<void(FrameArgs)>& frame_func);
@@ -191,8 +193,8 @@ private:
     float m_mouse_x, m_mouse_y, m_mouse_delta_x, m_mouse_delta_y;
     std::unordered_map<uint32_t, bool> m_keystates;
     std::unordered_map<uint32_t, bool> m_mouse_button_states;
-    std::unordered_map<uint32_t, std::function<void()>> m_on_mouse_click;
-    std::unordered_map<uint32_t, std::function<void()>> m_on_key_down;
+    std::unordered_map<uint32_t, std::unordered_map<void*,std::function<void()>>> m_on_mouse_click;
+    std::unordered_map<uint32_t, std::unordered_map<void*,std::function<void()>>> m_on_key_down;
     bool m_mouse_captured = false;
 
     // stats

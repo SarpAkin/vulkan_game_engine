@@ -1,9 +1,9 @@
 #version 460
-
 // #include "../glsl_shared.hpp"
 
 layout(location = 0) in uint vertex_data;
 
+//[variant[SHADOW_PASS]]
 #ifndef SHADOW_PASS
 layout (location = 0) out vec2  out_tex_pos;
 layout (location = 1) out float out_tex_id;

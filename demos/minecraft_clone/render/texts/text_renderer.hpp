@@ -9,7 +9,7 @@
 
 #include <vke/core/core.hpp>
 
-#include "../render_system.hpp"
+#include "../irender_system.hpp"
 
 namespace vke
 {
