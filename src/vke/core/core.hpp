@@ -26,6 +26,8 @@ class Buffer
     friend Core;
 
 public:
+    ~Buffer();
+
     const VkBuffer& buffer() const { return m_buffer; }
     auto size() const { return m_buffer_size; }
 
@@ -56,6 +58,8 @@ class Image
     friend Core;
 
 public:
+    ~Image();
+
     VkImage image;
     VkImageView view;
 
@@ -80,7 +84,7 @@ public:
     constexpr static int FRAME_OVERLAP = 2;
 
     //
-    inline size_t gpu_allignment()const { return 256; }
+    inline size_t gpu_allignment() const { return 256; }
     size_t pad_buffer(size_t bsize) const;
 
     inline auto instance() { return m_instance; }
@@ -193,8 +197,8 @@ private:
     float m_mouse_x, m_mouse_y, m_mouse_delta_x, m_mouse_delta_y;
     std::unordered_map<uint32_t, bool> m_keystates;
     std::unordered_map<uint32_t, bool> m_mouse_button_states;
-    std::unordered_map<uint32_t, std::unordered_map<void*,std::function<void()>>> m_on_mouse_click;
-    std::unordered_map<uint32_t, std::unordered_map<void*,std::function<void()>>> m_on_key_down;
+    std::unordered_map<uint32_t, std::unordered_map<void*, std::function<void()>>> m_on_mouse_click;
+    std::unordered_map<uint32_t, std::unordered_map<void*, std::function<void()>>> m_on_key_down;
     bool m_mouse_captured = false;
 
     // stats

@@ -422,4 +422,6 @@ VkSampler Core::create_sampler(VkFilter filter, VkSamplerAddressMode address_mod
     return sampler;
 }
 
+
+
 } // namespace vke

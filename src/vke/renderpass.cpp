@@ -380,6 +380,8 @@ void RenderPass::clean_frame_buffers()
     for (auto& image : m_images)
         image->clean_up();
 
+    m_images.clear();
+
     for (auto& fb : m_framebuffers)
         vkDestroyFramebuffer(m_core->device(), fb, nullptr);
 }

@@ -131,6 +131,9 @@ void Buffer::clean_up()
 {
     if (m_mapped_data) vmaUnmapMemory(m_allocator, m_allocation);
     vmaDestroyBuffer(m_allocator, m_buffer, m_allocation);
+
+    m_allocation = nullptr;
+    m_buffer     = nullptr;
 }
 
 void Image::clean_up()
@@ -139,6 +142,25 @@ void Image::clean_up()
 
     vkDestroyImageView(m_core->device(), view, nullptr);
     vmaDestroyImage(m_core->allocator(), image, m_allocation);
+
+    m_allocation = nullptr;
+    this->image  = nullptr;
+}
+
+Buffer::~Buffer()
+{
+    if (m_buffer)
+    {
+        fmt::print("buffer did not freed\n");
+    }
+}
+
+Image::~Image()
+{
+    if (image)
+    {
+        fmt::print("image did not freed\n");
+    }
 }
 
 } // namespace vke

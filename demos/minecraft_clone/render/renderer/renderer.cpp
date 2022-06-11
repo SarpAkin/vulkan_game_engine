@@ -154,7 +154,7 @@ VkRenderer::VkRenderer(Game* game)
     std::random_device rd;
     std::mt19937 gen(rd());
     std::uniform_real_distribution<float> dis(-1.0, 1.0);
-    std::uniform_real_distribution<float> dis2(0.5, 1.2);
+    std::uniform_real_distribution<float> dis2(0.2, .6);
 
     for (int i = 0; i < POISSON_DISC_SIZE; ++i)
     {
@@ -169,6 +169,7 @@ VkRenderer::~VkRenderer()
     m_chunk_renderer->cleanup();
     m_textrenderer->cleanup();
     m_main_pass->clean();
+    m_gpass->clean();
     m_shadow_pass->clean();
     for (auto& bp : m_blurpass)
         bp->clean();
@@ -179,6 +180,15 @@ VkRenderer::~VkRenderer()
     vkDestroyPipelineLayout(device, m_deferedlightning.gpipeline_layout, nullptr);
     vkDestroyPipeline(device, m_deferedlightning.gpipeline, nullptr);
     vkDestroyDescriptorSetLayout(device, m_deferedlightning.gset_layout, nullptr);
+
+    vkDestroyPipelineLayout(device, m_deferedlightning.final_pipeline_layout, nullptr);
+    vkDestroyPipeline(device, m_deferedlightning.final_pipeline, nullptr);
+    vkDestroyDescriptorSetLayout(device, m_deferedlightning.final_set_layout, nullptr);
+    
+    vkDestroyPipelineLayout(device, m_deferedlightning.blur_pipeline_layout, nullptr);
+    vkDestroyPipeline(device, m_deferedlightning.blur_pipeline, nullptr);
+    vkDestroyDescriptorSetLayout(device, m_deferedlightning.blur_set_layout, nullptr);
+
     vkDestroySampler(device, m_deferedlightning.linear_sampler, nullptr);
 
     for (auto& frame_data : m_frame_datas)
