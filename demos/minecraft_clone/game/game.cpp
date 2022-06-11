@@ -10,6 +10,7 @@ Game::Game()
 void Game::run()
 {
 
+    m_player.pos.y = 100.f;
     m_world->set_player(&m_player);
 
     m_renderer->run([this](float delta_t) { this->update(delta_t); });

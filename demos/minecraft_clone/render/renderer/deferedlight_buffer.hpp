@@ -7,6 +7,7 @@ namespace glsl
 #endif
 
 #define N_CASCADES 2
+#define POISSON_DISC_SIZE 0
 
 struct SceneBuffer
 {
@@ -17,6 +18,9 @@ struct SceneBuffer
     vec4 sun_light_dir;
     ivec4 render_mode;
     vec2 shadow_bias[N_CASCADES];//minx maxy
+#if POISSON_DISC_SIZE != 0
+    vec2 poisson_disc[POISSON_DISC_SIZE];
+#endif
 };
 
 #ifdef LANG_CPP

@@ -51,6 +51,7 @@ public:
     struct Attachment
     {
         Image* vke_image;
+        Image** vke_image_external;
         VkFormat format;
         VkImageLayout layout;
         VkImage image;
@@ -67,6 +68,7 @@ public:
     void next_subpass(VkCommandBuffer cmd);
     void end(VkCommandBuffer cmd);
 
+    inline auto& get_attachment(uint32_t att){return m_attachments[att];}
     inline void set_swapchain_image_index(uint32_t index) { m_framebuffer_index = index; }
     inline auto renderpass() { return m_renderpass; }
     inline void set_attachment_clear_value(uint32_t index, VkClearValue val)
@@ -75,7 +77,7 @@ public:
     }
     inline glm::vec2 size() { return glm::vec2(m_width, m_height); }
 
-    inline const auto& get_subpass(int index) const { return m_subpasses[index]; }
+    inline const auto& get_subpass(int index) const { return m_subpasses.at(index); }
 
     void clean();
 
@@ -108,14 +110,17 @@ public:
 
     struct AttachmentInfo
     {
+        Image** external = nullptr;
         bool sampled;
     };
 
     RenderPassBuilder();
     ~RenderPassBuilder();
 
-    uint32_t
-    add_attachment(VkFormat format, std::optional<VkClearValue> clear_value = std::nullopt,bool is_sampled = false);
+    uint32_t add_attachment(VkFormat format, std::optional<VkClearValue> clear_value = std::nullopt,bool is_sampled = false);
+    uint32_t add_external_attachment(Image** external_ref,VkFormat format, std::optional<VkClearValue> clear_value = std::nullopt, bool is_sampled = false);
+    uint32_t add_external_attachment(RenderPass* rp,uint32_t attachment);
+    
     uint32_t add_swapchain_attachment(Core* core, std::optional<VkClearValue> clear_value = std::nullopt);
     void add_subpass(const std::vector<uint32_t>& attachments_ids, const std::optional<uint32_t>& depth_stencil_attachment = std::nullopt, const std::vector<uint32_t>& input_attachments = {});
     std::unique_ptr<RenderPass> build(Core* core, uint32_t width, uint32_t height);
