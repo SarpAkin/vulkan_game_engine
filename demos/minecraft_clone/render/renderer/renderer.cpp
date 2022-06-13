@@ -6,6 +6,12 @@
 
 #include "deferedlight_buffer.hpp"
 
+struct BlurPush
+{
+    glm::mat4 blur_offset_calc_mat;
+    uint32_t horizontal;
+};
+
 VkRenderer::VkRenderer(Game* game)
 {
     m_game  = game;
@@ -35,7 +41,7 @@ VkRenderer::VkRenderer(Game* game)
 
         uint32_t galbedo_spec = gbuilder.add_attachment(VK_FORMAT_R8G8B8A8_SRGB, VkClearValue{.color{1.f, 1.f, 1.f, 0.f}}, true);
         uint32_t gnormal      = gbuilder.add_attachment(VK_FORMAT_R16G16B16A16_UNORM, VkClearValue{.color{0.5f, 0.5f, 0.5f, 0.f}});
-        uint32_t gdepth       = gbuilder.add_attachment(VK_FORMAT_D32_SFLOAT, VkClearValue{.depthStencil = {.depth = 1.f}});
+        uint32_t gdepth       = gbuilder.add_attachment(VK_FORMAT_D32_SFLOAT, VkClearValue{.depthStencil = {.depth = 1.f}}, true);
         uint32_t gshadow      = gbuilder.add_attachment(VK_FORMAT_R8_UNORM, std::nullopt, true);
         gbuilder.add_subpass({galbedo_spec, gnormal}, gdepth);
         gbuilder.add_subpass({gshadow}, std::nullopt, {gnormal, gdepth});
@@ -43,6 +49,7 @@ VkRenderer::VkRenderer(Game* game)
 
         m_deferedlightning.gshadow_att  = gshadow;
         m_deferedlightning.gsalbedo_att = galbedo_spec;
+        m_deferedlightning.gdepth_att   = gdepth;
 
         auto builder = vke::RenderPassBuilder();
 
@@ -128,12 +135,13 @@ VkRenderer::VkRenderer(Game* game)
     m_deferedlightning.blur_set_layout =
         vke::DescriptorSetLayoutBuilder()
             .add_image_sampler(VK_SHADER_STAGE_FRAGMENT_BIT)
+            .add_image_sampler(VK_SHADER_STAGE_FRAGMENT_BIT)
             .build(m_core->device());
 
     m_deferedlightning.blur_pipeline_layout =
         vke::PipelineLayoutBuilder()
             .add_set_layout(m_deferedlightning.blur_set_layout)
-            .add_push_constant<uint32_t>(VK_SHADER_STAGE_FRAGMENT_BIT)
+            .add_push_constant<BlurPush>(VK_SHADER_STAGE_FRAGMENT_BIT)
             .build(m_core->device());
 
     {
@@ -184,7 +192,7 @@ VkRenderer::~VkRenderer()
     vkDestroyPipelineLayout(device, m_deferedlightning.final_pipeline_layout, nullptr);
     vkDestroyPipeline(device, m_deferedlightning.final_pipeline, nullptr);
     vkDestroyDescriptorSetLayout(device, m_deferedlightning.final_set_layout, nullptr);
-    
+
     vkDestroyPipelineLayout(device, m_deferedlightning.blur_pipeline_layout, nullptr);
     vkDestroyPipeline(device, m_deferedlightning.blur_pipeline, nullptr);
     vkDestroyDescriptorSetLayout(device, m_deferedlightning.blur_set_layout, nullptr);
@@ -201,6 +209,18 @@ VkRenderer::~VkRenderer()
 void VkRenderer::run(std::function<void(float)>&& update)
 {
     m_core->run([&](auto&&... args) { return frame(update, args...); });
+}
+
+void print_mat(const glm::mat4& mat)
+{
+    for (int i = 0; i < 4; ++i)
+    {
+        for (int j = 0; j < 4; ++j)
+        {
+            fmt::print("{: 00.3f} ", mat[i][j]);
+        }
+        fmt::print("\n");
+    }
 }
 
 void VkRenderer::init(VkCommandBuffer cmd, std::vector<std::function<void()>>& cleanup_queue)
@@ -272,7 +292,7 @@ void VkRenderer::frame(std::function<void(float)>& update, vke::Core::FrameArgs&
 
     m_gpass->end(cmd);
 
-    if(m_shadow_blur_on) blur_shadows(cmd);
+    if (m_shadow_blur_on) blur_shadows(cmd);
 
     m_main_pass->begin(cmd);
 
@@ -330,8 +350,8 @@ void VkRenderer::defered_lightning(VkCommandBuffer cmd, const glm::mat4& proj_vi
 
 void VkRenderer::blur_shadows(VkCommandBuffer cmd)
 {
-    for(int i = 0;i < 2;++i)
-    {        
+    for (int i = 0; i < 2; ++i)
+    {
         m_blurpass[i]->begin(cmd);
 
         auto set =
@@ -339,12 +359,22 @@ void VkRenderer::blur_shadows(VkCommandBuffer cmd)
                 .add_image_sampler(i == 0 ? (*m_gpass->get_attachment(m_deferedlightning.gshadow_att).vke_image) : *m_blurpass[0]->get_attachment(0).vke_image,
                     VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
                     m_deferedlightning.linear_sampler, VK_SHADER_STAGE_FRAGMENT_BIT)
+                .add_image_sampler(*m_gpass->get_attachment(m_deferedlightning.gdepth_att).vke_image,
+                    VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                    m_deferedlightning.linear_sampler, VK_SHADER_STAGE_FRAGMENT_BIT)
                 .build(*current_frame().pool, m_deferedlightning.blur_set_layout);
 
         vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_deferedlightning.blur_pipeline);
         vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_deferedlightning.blur_pipeline_layout, 0, 1, &set, 0, nullptr);
-        uint32_t axis = i;
-        vkCmdPushConstants(cmd, m_deferedlightning.blur_pipeline_layout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(axis), &axis);
+
+        auto proj = m_game->camera()->proj(m_main_pass->size());
+        float blur_amount = 1.5f;
+        BlurPush push{
+            .blur_offset_calc_mat = proj * glm::translate(glm::mat4(1.f), glm::vec3(1.f, 1.f, 0.f) * blur_amount) * glm::inverse(proj),
+            .horizontal           = static_cast<uint32_t>(i),
+        };
+
+        vkCmdPushConstants(cmd, m_deferedlightning.blur_pipeline_layout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(push), &push);
 
         vkCmdDraw(cmd, 6, 1, 0, 0);
 

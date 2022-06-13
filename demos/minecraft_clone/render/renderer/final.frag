@@ -23,4 +23,6 @@ void main()
     float shadow = texture(shadow_tex,tex_coords).r;
 
     out_color = vec4(mix(albedo,albedo * ambient,shadow),1.0);
+
+    // out_color = vec4(shadow.xxx,1.0);
 }

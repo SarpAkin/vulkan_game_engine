@@ -81,7 +81,7 @@ private:
         float shadow_width    = 100.f;
         uint32_t render_mode  = 0;
         uint32_t select_bias  = 0;
-        uint32_t gshadow_att, gsalbedo_att;
+        uint32_t gshadow_att, gsalbedo_att,gdepth_att;
     } m_deferedlightning;
 
     Game* m_game   = nullptr;
