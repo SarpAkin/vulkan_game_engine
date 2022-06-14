@@ -5,6 +5,7 @@
 #include <iostream>
 #include <memory>
 #include <vector>
+#include <tuple>
 
 #include <glm/mat4x4.hpp>
 #include <glm/vec3.hpp>
@@ -42,7 +43,7 @@ private:
     void frame(std::function<void(float)>& update, vke::Core::FrameArgs& args);
 
     void render_objects(VkCommandBuffer cmd, vke::RenderPass* render_pass, const glm::mat4& porj_view);
-    void defered_lightning(VkCommandBuffer cmd, const glm::mat4& proj_view, const glm::mat4& shadow_proj_view);
+    void defered_lightning(VkCommandBuffer cmd, const glm::mat4& proj_view, const std::vector<std::tuple<glm::mat4,float,float>>& shadow_proj_view);
     void final_lightning(VkCommandBuffer cmd, const glm::mat4& proj_view);
     void blur_shadows(VkCommandBuffer cmd);
 
@@ -56,7 +57,8 @@ private:
     std::unique_ptr<vke::RenderPass> m_main_pass;
     std::unique_ptr<vke::RenderPass> m_gpass;
     std::array<std::unique_ptr<vke::RenderPass>, 2> m_blurpass;
-    std::unique_ptr<vke::RenderPass> m_shadow_pass;
+    std::unique_ptr<vke::ImageArray> m_shadow_cascades;
+    std::vector<std::unique_ptr<vke::RenderPass>> m_shadow_passes;
     std::unique_ptr<vke::DescriptorPool> m_lifetime_pool;
     std::unique_ptr<TextRenderer> m_textrenderer;
     std::unique_ptr<ChunkRenderer> m_chunk_renderer;
@@ -81,7 +83,7 @@ private:
         float shadow_width    = 100.f;
         uint32_t render_mode  = 0;
         uint32_t select_bias  = 0;
-        uint32_t gshadow_att, gsalbedo_att,gdepth_att;
+        uint32_t gshadow_att, gsalbedo_att, gdepth_att;
     } m_deferedlightning;
 
     Game* m_game   = nullptr;
@@ -97,6 +99,6 @@ private:
 
     std::array<FrameData, vke::Core::FRAME_OVERLAP> m_frame_datas;
 
-    bool initialized = false;
+    bool initialized      = false;
     bool m_shadow_blur_on = true;
 };

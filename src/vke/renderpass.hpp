@@ -51,7 +51,7 @@ public:
     struct Attachment
     {
         Image* vke_image;
-        Image** vke_image_external;
+        VkImageView* external_image_view;
         VkFormat format;
         VkImageLayout layout;
         VkImage image;
@@ -110,7 +110,7 @@ public:
 
     struct AttachmentInfo
     {
-        Image** external = nullptr;
+        VkImageView* external = nullptr;
         bool sampled;
     };
 
@@ -118,7 +118,7 @@ public:
     ~RenderPassBuilder();
 
     uint32_t add_attachment(VkFormat format, std::optional<VkClearValue> clear_value = std::nullopt,bool is_sampled = false);
-    uint32_t add_external_attachment(Image** external_ref,VkFormat format, std::optional<VkClearValue> clear_value = std::nullopt, bool is_sampled = false);
+    uint32_t add_external_attachment(VkImageView* external_ref,VkFormat format, std::optional<VkClearValue> clear_value = std::nullopt, bool is_sampled = false);
     uint32_t add_external_attachment(RenderPass* rp,uint32_t attachment);
     
     uint32_t add_swapchain_attachment(Core* core, std::optional<VkClearValue> clear_value = std::nullopt);

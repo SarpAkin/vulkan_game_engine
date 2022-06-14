@@ -39,11 +39,11 @@ DescriptorSetBuilder& DescriptorSetBuilder::add_buffer(std::vector<const Buffer*
     return add_buffer(map_vec(buffer, [](const Buffer* b) { return std::make_tuple(b, 0U, static_cast<uint32_t>(b->size())); }), stage, type);
 }
 
-DescriptorSetBuilder& DescriptorSetBuilder::add_buffer(std::vector<std::tuple<const Buffer*,uint32_t,uint32_t>> buffer, VkShaderStageFlags stage, VkDescriptorType type)
+DescriptorSetBuilder& DescriptorSetBuilder::add_buffer(std::vector<std::tuple<const Buffer*, uint32_t, uint32_t>> buffer, VkShaderStageFlags stage, VkDescriptorType type)
 {
     m_buffer_bindings.push_back(BufferBinding{
         .buffer_infos = map_vec(buffer, [&](std::tuple<const Buffer*, uint32_t, uint32_t>& tuple) {
-            auto& [buffer,offset,size] = tuple;
+            auto& [buffer, offset, size] = tuple;
 
             return VkDescriptorBufferInfo{
                 .buffer = buffer->buffer(),
@@ -58,13 +58,19 @@ DescriptorSetBuilder& DescriptorSetBuilder::add_buffer(std::vector<std::tuple<co
     return *this;
 }
 
-DescriptorSetBuilder& DescriptorSetBuilder::add_image(std::vector<const Image*> images, VkImageLayout layout, VkSampler sampler, VkShaderStageFlags stage, VkDescriptorType type)
+DescriptorSetBuilder& DescriptorSetBuilder::add_image(const std::vector<const Image*>& images, VkImageLayout layout, VkSampler sampler, VkShaderStageFlags stage, VkDescriptorType type)
+{
+    add_image(map_vec(images, [&](const Image* image) { return image->view; }), layout, sampler, stage, type);
+    return *this;
+}
+
+DescriptorSetBuilder& DescriptorSetBuilder::add_image(const std::vector<VkImageView>& images, VkImageLayout layout, VkSampler sampler, VkShaderStageFlags stage, VkDescriptorType type)
 {
     m_image_bindings.push_back(ImageBinding{
-        .image_infos = map_vec(images, [&](const Image* image) {
+        .image_infos = map_vec(images, [&](VkImageView image_view) {
             return VkDescriptorImageInfo{
                 .sampler     = sampler,
-                .imageView   = image->view,
+                .imageView   = image_view,
                 .imageLayout = layout,
             };
         }),

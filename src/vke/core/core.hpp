@@ -58,19 +58,33 @@ class Image
     friend Core;
 
 public:
-    ~Image();
+    virtual ~Image();
+    Image(Core* core, VkFormat format, VkImageUsageFlags usage_flags, uint32_t width, uint32_t height, uint32_t layers, bool host_visible);
 
     VkImage image;
     VkImageView view;
 
 public:
-    void clean_up();
+    virtual void clean_up();
     inline void* get_data() { return m_mapped_data; }
+
+protected:
+    Core* m_core = nullptr;
 
 private:
     VmaAllocation m_allocation;
-    Core* m_core        = nullptr;
     void* m_mapped_data = nullptr;
+};
+
+class ImageArray : public Image
+{
+public:
+    ImageArray(Core* core, VkFormat format, VkImageUsageFlags usage_flags, uint32_t width, uint32_t height, uint32_t layers, bool host_visible);
+    ~ImageArray();
+
+    std::vector<VkImageView> layered_views;
+
+    void clean_up() override;
 };
 
 class RenderPass;
@@ -105,9 +119,11 @@ public:
 
     // buffers
     std::unique_ptr<Buffer> allocate_buffer(VkBufferUsageFlagBits usage, uint32_t buffer_size, bool host_visible);
-    std::unique_ptr<Image> allocate_image(VkFormat format, VkImageUsageFlags usageFlags, uint32_t width, uint32_t height, bool cpu_read_write);
+    std::unique_ptr<Image> allocate_image(VkFormat format, VkImageUsageFlags usage_flags, uint32_t width, uint32_t height, bool cpu_read_write);
+    std::unique_ptr<ImageArray> allocate_image_array(VkFormat format, VkImageUsageFlags usage_flags, uint32_t width, uint32_t height,uint32_t layer_count, bool cpu_read_write);
+
     std::unique_ptr<Image> load_png(const char* path, VkCommandBuffer cmd, std::vector<std::function<void()>>& cleanup_queue);
-    std::unique_ptr<Image> buffer_to_image(VkCommandBuffer cmd, Buffer* buffer, VkFormat format, VkImageUsageFlags usageFlags, uint32_t width, uint32_t height);
+    std::unique_ptr<Image> buffer_to_image(VkCommandBuffer cmd, Buffer* buffer, VkFormat format, VkImageUsageFlags usage_flags, uint32_t width, uint32_t height);
 
     //
     auto swapchain_image_format() { return m_swapchain_image_format; }

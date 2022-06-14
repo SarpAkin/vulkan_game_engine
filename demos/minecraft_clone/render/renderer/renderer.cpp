@@ -3,6 +3,7 @@
 #include <random>
 
 #include "../../game/game.hpp"
+#include "../math.hpp"
 
 #include "deferedlight_buffer.hpp"
 
@@ -68,14 +69,18 @@ VkRenderer::VkRenderer(Game* game)
         m_blurpass[i] = builder.build(m_core.get(), m_core->width(), m_core->height());
     }
 
-    m_shadow_pass = [&] {
-        const uint32_t shadow_size = 1024 * 8;
+    const uint32_t shadow_size = 1024 * 2;
 
+    m_shadow_cascades = m_core->allocate_image_array(VK_FORMAT_D16_UNORM, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+        shadow_size, shadow_size, N_CASCADES, false);
+
+    for (int i = 0; i < N_CASCADES; ++i)
+    {
         auto builder   = vke::RenderPassBuilder();
-        uint32_t depth = builder.add_attachment(VK_FORMAT_D16_UNORM, VkClearValue{.depthStencil = {.depth = 1.f}}, true);
+        uint32_t depth = builder.add_external_attachment(&m_shadow_cascades->layered_views[i], VK_FORMAT_D16_UNORM, VkClearValue{.depthStencil = {.depth = 1.f}}, true);
         builder.add_subpass({}, depth);
-        return builder.build(m_core.get(), shadow_size, shadow_size);
-    }();
+        m_shadow_passes.push_back(builder.build(m_core.get(), shadow_size, shadow_size));
+    }
 
     m_lifetime_pool = std::make_unique<vke::DescriptorPool>(m_core->device());
 
@@ -178,7 +183,9 @@ VkRenderer::~VkRenderer()
     m_textrenderer->cleanup();
     m_main_pass->clean();
     m_gpass->clean();
-    m_shadow_pass->clean();
+    m_shadow_cascades->clean_up();
+    for (auto& sp : m_shadow_passes)
+        sp->clean();
     for (auto& bp : m_blurpass)
         bp->clean();
     m_lifetime_pool->clean();
@@ -227,7 +234,8 @@ void VkRenderer::init(VkCommandBuffer cmd, std::vector<std::function<void()>>& c
 {
     m_chunk_renderer = std::make_unique<ChunkRenderer>(m_core.get(), *m_lifetime_pool, cmd, cleanup_queue);
     m_chunk_renderer->register_renderpass(m_gpass.get(), 0, false);
-    m_chunk_renderer->register_renderpass(m_shadow_pass.get(), 0, true);
+    for (auto& sp : m_shadow_passes)
+        m_chunk_renderer->register_renderpass(sp.get(), 0, true);
 
     m_textrenderer = std::make_unique<TextRenderer>(m_core.get(), m_lifetime_pool.get(), cmd, cleanup_queue);
     m_textrenderer->register_renderpass(m_main_pass.get(), 0);
@@ -263,23 +271,31 @@ void VkRenderer::frame(std::function<void(float)>& update, vke::Core::FrameArgs&
         m_chunk_renderer->mesh_chunk(c);
     }
 
-    const float shadow_width   = m_deferedlightning.shadow_width;
-    glm::vec3 sun_pos          = {0.f, 120.f, 0.f};
-    glm::mat4 shadow_proj_view = glm::ortho(-shadow_width, shadow_width, shadow_width, -shadow_width, 0.f, m_deferedlightning.shadow_far) *
-                                 glm::lookAt(sun_pos, sun_pos + m_deferedlightning.sun_dir, glm::vec3(0.f, 1.f, 0.f));
+    auto proj = m_game->camera()->proj(m_main_pass->size());
+    auto view = m_game->player()->view();
+
+    // proj = glm::perspective(glm::radians(70.f), 1.f, 10.1f, 40.f);
+    // view = glm::lookAt(glm::vec3(0.f, 90.f, 0.f), {0.f, 90.f, 10.f}, {0.f, 1.f, 0.001f});
+
+    auto cascades = calc_cascaded_shadows(*m_game->camera(), m_main_pass->size(), view, m_deferedlightning.sun_dir, {20.f, 50.f,250.f});
 
     m_textrenderer->render_text_px(m_main_pass.get(),
         fmt::format("shadow bias min: {}\nshadow bias max: {}", m_deferedlightning.shadow_bias.x, m_deferedlightning.shadow_bias.y),
         glm::vec2(20.f, 25.f), glm::vec2(16.f, 16.f));
 
-    m_primative_renderer->frustrum_frame(shadow_proj_view, 0xFF'00'00'00);
 
-    m_shadow_pass->begin(cmd);
+    for (int i = 0; i < m_shadow_passes.size(); ++i)
+    {
+        auto& shadow_pass               = m_shadow_passes[i];
+        auto& [shadow_proj_view, _, __] = cascades[i];
 
-    render_objects(cmd, m_shadow_pass.get(), shadow_proj_view);
 
-    m_shadow_pass->end(cmd);
+        shadow_pass->begin(cmd);
 
+        render_objects(cmd, shadow_pass.get(), shadow_proj_view);
+
+        shadow_pass->end(cmd);
+    }
     glm::mat4 proj_view = m_game->camera()->proj(m_gpass->size()) * m_game->player()->view();
 
     m_gpass->begin(cmd);
@@ -288,7 +304,7 @@ void VkRenderer::frame(std::function<void(float)>& update, vke::Core::FrameArgs&
 
     m_gpass->next_subpass(cmd);
 
-    defered_lightning(cmd, proj_view, shadow_proj_view);
+    defered_lightning(cmd, proj_view, cascades);
 
     m_gpass->end(cmd);
 
@@ -310,18 +326,25 @@ void VkRenderer::render_objects(VkCommandBuffer cmd, vke::RenderPass* render_pas
     m_chunk_renderer->render(cmd, current_frame().pool.get(), render_pass, 0, proj_view);
 }
 
-void VkRenderer::defered_lightning(VkCommandBuffer cmd, const glm::mat4& proj_view, const glm::mat4& shadow_proj_view)
+void VkRenderer::defered_lightning(VkCommandBuffer cmd, const glm::mat4& proj_view, const std::vector<std::tuple<glm::mat4, float, float>>& cascades)
 {
     auto& dubo = current_frame().dubo;
 
     auto sc_buffer = glsl::SceneBuffer{
-        .proj_view        = proj_view,
-        .inv_proj_view    = glm::inverse(proj_view),
-        .shadow_proj_view = {shadow_proj_view},
-        .sun_light_dir    = glm::vec4(glm::normalize(m_deferedlightning.sun_dir), 1.f),
-        .render_mode      = glm::ivec4(m_deferedlightning.render_mode),
-        .shadow_bias      = {m_deferedlightning.shadow_bias / m_deferedlightning.shadow_far},
+        .proj_view     = proj_view,
+        .inv_proj_view = glm::inverse(proj_view),
+        .sun_light_dir = glm::vec4(glm::normalize(m_deferedlightning.sun_dir), 1.f),
+        .near_far      = {m_game->camera()->near, m_game->camera()->far, 0.f, 0.f},
     };
+
+    for (int i = 0; i < N_CASCADES; ++i)
+    {
+        const auto& [s_proj_view, far, cascade_end] = cascades[i];
+
+        sc_buffer.shadow_proj_view[i] = s_proj_view;
+        sc_buffer.shadow_bias[i]      = glm::vec4(m_deferedlightning.shadow_bias / far,0.f,0.f);
+        sc_buffer.cascade_ends[i]     = cascade_end;
+    }
 #if POISSON_DISC_SIZE != 0
     memcpy(sc_buffer.poisson_disc, m_deferedlightning.m_poisson_disc.get(), POISSON_DISC_SIZE * sizeof(glm::vec2));
 #endif
@@ -336,7 +359,7 @@ void VkRenderer::defered_lightning(VkCommandBuffer cmd, const glm::mat4& proj_vi
                 .add_input_attachment(m_gpass->get_subpass(0).get_attachment(1)->view)
                 .add_input_attachment(m_gpass->get_subpass(0).get_depth_attachment()->view)
                 .add_dubo(dubo->buffer(), offset, size, VK_SHADER_STAGE_FRAGMENT_BIT)
-                .add_image_sampler(*m_shadow_pass->get_subpass(0).get_depth_attachment()->vke_image,
+                .add_image_sampler(m_shadow_cascades->view,
                     VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
                     m_deferedlightning.linear_sampler, VK_SHADER_STAGE_FRAGMENT_BIT)
                 .build(*current_frame().pool, m_deferedlightning.gset_layout);
@@ -356,10 +379,10 @@ void VkRenderer::blur_shadows(VkCommandBuffer cmd)
 
         auto set =
             vke::DescriptorSetBuilder()
-                .add_image_sampler(i == 0 ? (*m_gpass->get_attachment(m_deferedlightning.gshadow_att).vke_image) : *m_blurpass[0]->get_attachment(0).vke_image,
+                .add_image_sampler(i == 0 ? (m_gpass->get_attachment(m_deferedlightning.gshadow_att).vke_image->view) : m_blurpass[0]->get_attachment(0).vke_image->view,
                     VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
                     m_deferedlightning.linear_sampler, VK_SHADER_STAGE_FRAGMENT_BIT)
-                .add_image_sampler(*m_gpass->get_attachment(m_deferedlightning.gdepth_att).vke_image,
+                .add_image_sampler(m_gpass->get_attachment(m_deferedlightning.gdepth_att).vke_image->view,
                     VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
                     m_deferedlightning.linear_sampler, VK_SHADER_STAGE_FRAGMENT_BIT)
                 .build(*current_frame().pool, m_deferedlightning.blur_set_layout);
@@ -367,7 +390,7 @@ void VkRenderer::blur_shadows(VkCommandBuffer cmd)
         vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_deferedlightning.blur_pipeline);
         vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_deferedlightning.blur_pipeline_layout, 0, 1, &set, 0, nullptr);
 
-        auto proj = m_game->camera()->proj(m_main_pass->size());
+        auto proj         = m_game->camera()->proj(m_main_pass->size());
         float blur_amount = 1.5f;
         BlurPush push{
             .blur_offset_calc_mat = proj * glm::translate(glm::mat4(1.f), glm::vec3(1.f, 1.f, 0.f) * blur_amount) * glm::inverse(proj),
@@ -390,8 +413,6 @@ void VkRenderer::final_lightning(VkCommandBuffer cmd, const glm::mat4& proj_view
         .proj_view     = proj_view,
         .inv_proj_view = glm::inverse(proj_view),
         .sun_light_dir = glm::vec4(glm::normalize(m_deferedlightning.sun_dir), 1.f),
-        .render_mode   = glm::ivec4(m_deferedlightning.render_mode),
-        .shadow_bias   = {m_deferedlightning.shadow_bias / m_deferedlightning.shadow_far},
     };
 #if POISSON_DISC_SIZE != 0
     memcpy(sc_buffer.poisson_disc, m_deferedlightning.m_poisson_disc.get(), POISSON_DISC_SIZE * sizeof(glm::vec2));
@@ -401,10 +422,10 @@ void VkRenderer::final_lightning(VkCommandBuffer cmd, const glm::mat4& proj_view
 
     auto set =
         vke::DescriptorSetBuilder()
-            .add_image_sampler(*m_gpass->get_attachment(m_deferedlightning.gsalbedo_att).vke_image,
+            .add_image_sampler(m_gpass->get_attachment(m_deferedlightning.gsalbedo_att).vke_image->view,
                 VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
                 m_deferedlightning.linear_sampler, VK_SHADER_STAGE_FRAGMENT_BIT)
-            .add_image_sampler(!m_shadow_blur_on ? *m_gpass->get_attachment(m_deferedlightning.gshadow_att).vke_image : *m_blurpass[1]->get_attachment(0).vke_image,
+            .add_image_sampler(!m_shadow_blur_on ? m_gpass->get_attachment(m_deferedlightning.gshadow_att).vke_image->view : m_blurpass[1]->get_attachment(0).vke_image->view,
                 VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
                 m_deferedlightning.linear_sampler, VK_SHADER_STAGE_FRAGMENT_BIT)
             .add_dubo(dubo->buffer(), offset, size, VK_SHADER_STAGE_FRAGMENT_BIT)

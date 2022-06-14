@@ -56,9 +56,9 @@ public:
     inline DescriptorSetBuilder& add_ssbo(const Buffer& buffer, VkShaderStageFlags stage) { return add_buffer(buffer, stage, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER); }
     inline DescriptorSetBuilder& add_dubo(const Buffer& buffer,uint32_t offset,uint32_t size, VkShaderStageFlags stage) { return add_buffer({std::make_tuple(&buffer,offset,size)}, stage, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC); }
 
-    inline DescriptorSetBuilder& add_ubo(std::vector<const Buffer*> buffer, VkShaderStageFlags stage) { return add_buffer(buffer, stage, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER); }
-    inline DescriptorSetBuilder& add_ssbo(std::vector<const Buffer*> buffer, VkShaderStageFlags stage) { return add_buffer(buffer, stage, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER); }
-    inline DescriptorSetBuilder& add_dubo(std::vector<const Buffer*> buffer, VkShaderStageFlags stage) { return add_buffer(buffer, stage, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC); }
+    inline DescriptorSetBuilder& add_ubo(const std::vector<const Buffer*>& buffer, VkShaderStageFlags stage) { return add_buffer(buffer, stage, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER); }
+    inline DescriptorSetBuilder& add_ssbo(const std::vector<const Buffer*>& buffer, VkShaderStageFlags stage) { return add_buffer(buffer, stage, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER); }
+    inline DescriptorSetBuilder& add_dubo(const std::vector<const Buffer*>& buffer, VkShaderStageFlags stage) { return add_buffer(buffer, stage, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC); }
 
     DescriptorSetBuilder& add_input_attachment(VkImageView view)
     {
@@ -75,6 +75,10 @@ public:
         return *this;
     }
 
+    inline DescriptorSetBuilder& add_image_sampler(VkImageView view, VkImageLayout layout, VkSampler sampler, VkShaderStageFlags stage)
+    {
+        return add_image({view}, layout, sampler, stage, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+    }
     inline DescriptorSetBuilder& add_image_sampler(const Image& images, VkImageLayout layout, VkSampler sampler, VkShaderStageFlags stage)
     {
         return add_image(images, layout, sampler, stage, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
@@ -87,7 +91,6 @@ public:
     VkDescriptorSet build(DescriptorPool& pool, VkDescriptorSetLayout layout);
 
 private:
-    ;
     inline DescriptorSetBuilder& add_buffer(const Buffer& buffer, VkShaderStageFlags stage, VkDescriptorType type)
     {
         return add_buffer({&buffer}, stage, type);
@@ -98,7 +101,8 @@ private:
     {
         return add_image({&images}, layout, sampler, stage, type);
     }
-    DescriptorSetBuilder& add_image(std::vector<const Image*> images, VkImageLayout layout, VkSampler sampler, VkShaderStageFlags stage, VkDescriptorType type);
+    DescriptorSetBuilder& add_image(const std::vector<const Image*>& images, VkImageLayout layout, VkSampler sampler, VkShaderStageFlags stage, VkDescriptorType type);
+    DescriptorSetBuilder& add_image(const std::vector<VkImageView>& images, VkImageLayout layout, VkSampler sampler, VkShaderStageFlags stage, VkDescriptorType type);
 
     struct ImageBinding
     {

@@ -13,7 +13,7 @@ layout(set = 0,binding = 3) uniform _
 	SceneBuffer lights;
 };
 
-layout(set = 0,binding = 4) uniform sampler2D[] shadow_texs;
+layout(set = 0,binding = 4) uniform sampler2DArray shadow_texs;
 
 layout(location = 0) in vec2 screen_pos;
 
@@ -41,7 +41,7 @@ float get_shadow_value(vec4 world_pos,vec3 normal)
  
 
 #if POISSON_DISC_SIZE == 0
-	return current_depth - bias  > texture(shadow_texs[0],shadow_pos.xy).r ? 1.0 : 0.0;
+	return current_depth - bias  > texture(shadow_texs,vec3(shadow_pos.xy,0.0)).r ? 1.0 : 0.0;
 #else
 
 	float shadow = 0.0;
@@ -56,7 +56,7 @@ float get_shadow_value(vec4 world_pos,vec3 normal)
 		mutator = rand;
 		int index = int(rand * POISSON_DISC_SIZE) % POISSON_DISC_SIZE;
 
-		float pcf_depth = texture(shadow_texs[0],shadow_pos.xy + lights.poisson_disc[index].xy).r;
+		float pcf_depth = texture(shadow_texs,vec3(shadow_pos.xy + lights.poisson_disc[index].xy,0.0)).r;
 		shadow += current_depth - bias > pcf_depth ? 1.0 : 0.0; 
 	}
 
@@ -84,6 +84,8 @@ void main()
 		return;
 	}
 
+	
+
 
 
 
@@ -94,12 +96,7 @@ void main()
 
     vec3 ambient = vec3(0.2,0.2,0.2);
 
-	if(lights.render_mode.x != 0)
-	{
-		out_color = vec4(normal,1.0);
 
-		return;
-	}
 
 	out_color = vec4(albedo_spec.xyz * mix(vec3(1.0),ambient,get_shadow_value(world_pos4,normal)),1.0);
 

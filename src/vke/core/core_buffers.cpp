@@ -65,66 +65,101 @@ std::unique_ptr<Buffer> Core::allocate_buffer(VkBufferUsageFlagBits usage, uint3
     return buffer;
 }
 
-std::unique_ptr<Image> Core::allocate_image(VkFormat format, VkImageUsageFlags usageFlags, uint32_t width, uint32_t height, bool host_visible)
+Image::Image(Core* core, VkFormat format, VkImageUsageFlags usage_flags, uint32_t width, uint32_t height, uint32_t layers, bool host_visible)
 {
+    m_core = core;
+
     VkImageCreateInfo ic_info = {
         .sType       = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
         .imageType   = VK_IMAGE_TYPE_2D,
         .format      = format,
         .extent      = {width, height, 1},
         .mipLevels   = 1,
-        .arrayLayers = 1,
+        .arrayLayers = layers,
         .samples     = VK_SAMPLE_COUNT_1_BIT,
         .tiling      = host_visible ? VK_IMAGE_TILING_LINEAR : VK_IMAGE_TILING_OPTIMAL,
-        .usage       = usageFlags,
+        .usage       = usage_flags,
     };
-
-    VkImage image;
 
     VmaAllocationCreateInfo dimg_allocinfo = {
         .flags = host_visible ? VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT : 0u,
         .usage = VMA_MEMORY_USAGE_AUTO,
     };
 
-    VmaAllocation allocation;
-
-    VK_CHECK(vmaCreateImage(m_allocator, &ic_info, &dimg_allocinfo, &image, &allocation, nullptr));
+    VK_CHECK(vmaCreateImage(core->allocator(), &ic_info, &dimg_allocinfo, &image, &m_allocation, nullptr));
 
     VkImageViewCreateInfo ivc_info = {
         .sType            = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
         .image            = image,
-        .viewType         = VK_IMAGE_VIEW_TYPE_2D,
+        .viewType         = layers == 1 ? VK_IMAGE_VIEW_TYPE_2D : VK_IMAGE_VIEW_TYPE_2D_ARRAY,
         .format           = format,
         .subresourceRange = {
             .aspectMask     = is_depth_format(format) ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT,
             .baseMipLevel   = 0,
             .levelCount     = 1,
             .baseArrayLayer = 0,
-            .layerCount     = 1,
-        },
-    };
+            .layerCount     = layers,
+        }, };
 
-    VkImageView view;
-
-    VK_CHECK(vkCreateImageView(device(), &ivc_info, nullptr, &view));
-
-    auto vke_image = std::make_unique<Image>();
-
-    vke_image->image        = image;
-    vke_image->view         = view;
-    vke_image->m_allocation = allocation;
-    vke_image->m_core       = this;
+    VK_CHECK(vkCreateImageView(core->device(), &ivc_info, nullptr, &view));
 
     if (host_visible)
     {
-        VK_CHECK(vmaMapMemory(m_allocator, allocation, &vke_image->m_mapped_data));
+        VK_CHECK(vmaMapMemory(core->allocator(), m_allocation, &m_mapped_data));
     }
     else
     {
-        vke_image->m_mapped_data = nullptr;
+        m_mapped_data = nullptr;
+    }
+}
+
+ImageArray::ImageArray(Core* core, VkFormat format, VkImageUsageFlags usage_flags, uint32_t width, uint32_t height, uint32_t layers, bool host_visible)
+    : Image(core, format, usage_flags, width, height, layers, host_visible)
+{
+    layered_views.resize(layers);
+
+    for (uint32_t i = 0; i < layers; ++i)
+    {
+        VkImageViewCreateInfo ivc_info = {
+            .sType            = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+            .image            = image,
+            .viewType         = VK_IMAGE_VIEW_TYPE_2D,
+            .format           = format,
+            .subresourceRange = {
+                .aspectMask     = is_depth_format(format) ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT,
+                .baseMipLevel   = 0,
+                .levelCount     = 1,
+                .baseArrayLayer = i,
+                .layerCount     = 1,
+            },
+        };
+
+        VK_CHECK(vkCreateImageView(core->device(), &ivc_info, nullptr, &layered_views[i]));
     }
 
-    return vke_image;
+}
+
+void ImageArray::clean_up(){
+    Image::clean_up();
+
+    for(auto& layer : layered_views){
+        vkDestroyImageView(m_core->device(), layer, nullptr);
+    }
+}
+
+ImageArray::~ImageArray()
+{
+    
+}
+
+std::unique_ptr<Image> Core::allocate_image(VkFormat format, VkImageUsageFlags usage_flags, uint32_t width, uint32_t height, bool host_visible)
+{
+    return std::make_unique<Image>(this, format, usage_flags, width, height, 1, host_visible);
+}
+
+std::unique_ptr<ImageArray> Core::allocate_image_array(VkFormat format, VkImageUsageFlags usage_flags, uint32_t width, uint32_t height, uint32_t layer_count, bool host_visible)
+{
+    return std::make_unique<ImageArray>(this, format, usage_flags, width, height, layer_count, host_visible);
 }
 
 void Buffer::clean_up()

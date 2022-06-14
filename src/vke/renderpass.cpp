@@ -48,7 +48,7 @@ uint32_t RenderPassBuilder::add_attachment(VkFormat format, std::optional<VkClea
     return m_attachments.size() - 1;
 }
 
-uint32_t RenderPassBuilder::add_external_attachment(Image** external, VkFormat format, std::optional<VkClearValue> clear_value, bool is_sampled)
+uint32_t RenderPassBuilder::add_external_attachment(VkImageView* external, VkFormat format, std::optional<VkClearValue> clear_value, bool is_sampled)
 {
     m_attachments.push_back(
         {VkAttachmentDescription{
@@ -70,7 +70,7 @@ uint32_t RenderPassBuilder::add_external_attachment(Image** external, VkFormat f
 
 uint32_t RenderPassBuilder::add_external_attachment(RenderPass* rp, uint32_t attachment)
 {
-    return add_external_attachment(&rp->get_attachment(attachment).vke_image, rp->get_attachment(attachment).format);
+    return add_external_attachment(&rp->get_attachment(attachment).vke_image->view, rp->get_attachment(attachment).format);
 }
 
 uint32_t RenderPassBuilder::add_swapchain_attachment(Core* core, std::optional<VkClearValue> clear_value)
@@ -150,7 +150,7 @@ std::unique_ptr<RenderPass> RenderPassBuilder::build(Core* core, uint32_t width,
 
     auto rp_args_att = map_vec(m_attachments, [](const std::pair<VkAttachmentDescription, AttachmentInfo>& des) {
         return RenderPass::Attachment{
-            .vke_image_external = des.second.external,
+            .external_image_view = des.second.external,
             .format             = des.first.format,
             .layout             = des.first.finalLayout,
             .external           = des.second.external ? true : false,
@@ -329,9 +329,9 @@ void RenderPass::create_frame_buffers()
         if (att.external)
         {
             if (att.swap_chain_attachment) continue;
-            att.vke_image = *att.vke_image_external;
-            att.image     = (*att.vke_image_external)->image;
-            att.view      = (*att.vke_image_external)->view;
+            att.vke_image = nullptr;
+            att.image     = nullptr;
+            att.view      = *att.external_image_view;
 
             continue;
         }
@@ -344,7 +344,7 @@ void RenderPass::create_frame_buffers()
         att.image              = im->image;
         att.view               = im->view;
         att.vke_image          = im.get();
-        att.vke_image_external = nullptr;
+        att.external_image_view = nullptr;
 
         m_images.push_back(std::move(im));
     }

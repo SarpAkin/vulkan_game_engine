@@ -93,7 +93,7 @@ std::optional<VkPipeline> PipelineBuilder::build(Core* core, RenderPass* renderp
 {
     assert(core && renderpass);
 
-    BENCHMARK_FUNCTION();
+    // BENCHMARK_FUNCTION();
 
     VkPipelineViewportStateCreateInfo viewport_state = {
         .sType         = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
