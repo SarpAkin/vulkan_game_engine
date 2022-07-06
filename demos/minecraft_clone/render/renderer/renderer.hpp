@@ -4,8 +4,8 @@
 
 #include <iostream>
 #include <memory>
-#include <vector>
 #include <tuple>
+#include <vector>
 
 #include <glm/mat4x4.hpp>
 #include <glm/vec3.hpp>
@@ -43,7 +43,7 @@ private:
     void frame(std::function<void(float)>& update, vke::Core::FrameArgs& args);
 
     void render_objects(VkCommandBuffer cmd, vke::RenderPass* render_pass, const glm::mat4& porj_view);
-    void defered_lightning(VkCommandBuffer cmd, const glm::mat4& proj_view, const std::vector<std::tuple<glm::mat4,float,float>>& shadow_proj_view);
+    void defered_lightning(VkCommandBuffer cmd, const glm::mat4& proj_view);
     void final_lightning(VkCommandBuffer cmd, const glm::mat4& proj_view);
     void blur_shadows(VkCommandBuffer cmd);
 
@@ -67,6 +67,8 @@ private:
     struct
     {
         std::unique_ptr<glm::vec2[]> m_poisson_disc;
+        std::vector<std::tuple<glm::mat4, float, float>> cascades;
+
         VkDescriptorSetLayout gset_layout;
         VkPipelineLayout gpipeline_layout;
         VkPipeline gpipeline;
@@ -98,6 +100,8 @@ private:
     };
 
     std::array<FrameData, vke::Core::FRAME_OVERLAP> m_frame_datas;
+
+    uint32_t m_frame_counter = 0;
 
     bool initialized      = false;
     bool m_shadow_blur_on = true;

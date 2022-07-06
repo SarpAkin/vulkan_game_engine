@@ -125,6 +125,8 @@ public:
     std::unique_ptr<Image> load_png(const char* path, VkCommandBuffer cmd, std::vector<std::function<void()>>& cleanup_queue);
     std::unique_ptr<Image> buffer_to_image(VkCommandBuffer cmd, Buffer* buffer, VkFormat format, VkImageUsageFlags usage_flags, uint32_t width, uint32_t height);
 
+    VkBufferMemoryBarrier buffer_barrier(Buffer* buffer,VkAccessFlags src_access,VkAccessFlags dst_acces);
+
     //
     auto swapchain_image_format() { return m_swapchain_image_format; }
     auto swapchain_image_views() { return m_swapchain_image_views; }

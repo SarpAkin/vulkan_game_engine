@@ -99,7 +99,8 @@ Image::Image(Core* core, VkFormat format, VkImageUsageFlags usage_flags, uint32_
             .levelCount     = 1,
             .baseArrayLayer = 0,
             .layerCount     = layers,
-        }, };
+        },
+    };
 
     VK_CHECK(vkCreateImageView(core->device(), &ivc_info, nullptr, &view));
 
@@ -136,20 +137,20 @@ ImageArray::ImageArray(Core* core, VkFormat format, VkImageUsageFlags usage_flag
 
         VK_CHECK(vkCreateImageView(core->device(), &ivc_info, nullptr, &layered_views[i]));
     }
-
 }
 
-void ImageArray::clean_up(){
+void ImageArray::clean_up()
+{
     Image::clean_up();
 
-    for(auto& layer : layered_views){
+    for (auto& layer : layered_views)
+    {
         vkDestroyImageView(m_core->device(), layer, nullptr);
     }
 }
 
 ImageArray::~ImageArray()
 {
-    
 }
 
 std::unique_ptr<Image> Core::allocate_image(VkFormat format, VkImageUsageFlags usage_flags, uint32_t width, uint32_t height, bool host_visible)
@@ -196,6 +197,20 @@ Image::~Image()
     {
         fmt::print("image did not freed\n");
     }
+}
+
+VkBufferMemoryBarrier Core::buffer_barrier(Buffer* buffer, VkAccessFlags src_access, VkAccessFlags dst_acces)
+{
+    return VkBufferMemoryBarrier{
+        .sType               = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
+        .srcAccessMask       = src_access,
+        .dstAccessMask       = dst_acces,
+        .srcQueueFamilyIndex = m_graphics_queue_family,
+        .dstQueueFamilyIndex = m_graphics_queue_family,
+        .buffer              = buffer->buffer(),
+        .offset              = 0,
+        .size                = VK_WHOLE_SIZE,
+    };
 }
 
 } // namespace vke

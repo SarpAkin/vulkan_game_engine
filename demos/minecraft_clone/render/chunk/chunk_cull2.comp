@@ -1,0 +1,76 @@
+#version 460
+
+#include "../glsl_shared.hpp"
+
+#include "chunk_shared.hpp"
+
+layout (local_size_x = GROUP_X_SIZE) in;
+layout (local_size_y = 1) in;
+
+struct IndirectDraw
+{
+    uint index_count;
+    uint instance_count;
+    uint first_index;
+    int  vertex_offset;
+    uint first_instance;
+};
+
+layout (push_constant) uniform PushConstants
+{
+    Frustrum frustrum;
+    uint chunk_count;
+};
+
+layout (std430,set = 0,binding = 0) readonly buffer PackedCunkData
+{
+    uvec4 packed_chunk_data[];
+};
+
+layout (std430,set = 0,binding = 1)  buffer MPData
+{
+    MeshPoolData mesh_pool_datas[];
+};
+
+layout(std430,set = 0,binding = 2) buffer IndirectDraws
+{
+    IndirectDraw draws[];
+};
+
+layout(std430,set = 0,binding = 3) buffer DrawData
+{
+    uvec2 packed_chunk_draw_data[];
+};
+
+void main()
+{
+    uint x_id = gl_GlobalInvocationID.x;
+
+    if(x_id >= chunk_count) return;
+
+    uvec4 packed_data = packed_chunk_data[x_id];
+    vec3 chunk_world_pos = unpack_chunk_pos(packed_data.xy) * 32.0;
+
+    AABB chunk_aabb;
+    chunk_aabb.min = chunk_world_pos;
+    chunk_aabb.max = chunk_world_pos + vec3(32.0,32.0,32.0);
+
+    if(!frustrum_vs_aabb(frustrum,chunk_aabb)) return;
+
+    GhunkGPUMeshData mesh_data = unpack_mesh_data(packed_data.zw);
+
+    uint draw_index = mesh_pool_datas[mesh_data.buffer_id].draw_offset 
+                    + atomicAdd(mesh_pool_datas[mesh_data.buffer_id].draw_count,1); 
+    
+    IndirectDraw draw;
+    draw.first_index = 0;
+    draw.index_count = (mesh_data.vert_count / 4) * 6;
+    draw.vertex_offset = int(mesh_data.vert_offset);
+    
+    draw.instance_count = 1;
+    draw.first_instance = 0;
+
+    packed_chunk_draw_data[draw_index] = packed_data.xy;
+
+    draws[draw_index] = draw;
+}

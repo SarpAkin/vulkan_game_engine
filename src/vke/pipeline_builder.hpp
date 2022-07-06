@@ -51,21 +51,51 @@ namespace imp
 class VertexInputDescription;
 }
 
-class PipelineBuilder
+template <typename Inherited>
+class PipelineBuilderBase
 {
 public:
     std::vector<VkPipelineShaderStageCreateInfo> shader_stages;
-    VkPipelineLayout pipeline_layout                           = nullptr;
-    VkPipelineDepthStencilStateCreateInfo depth_stencil        = {}; //
-    VkPipelineVertexInputStateCreateInfo vertex_input_info     = {}; //
-    VkPipelineInputAssemblyStateCreateInfo input_assembly      = {}; //
-    VkPipelineRasterizationStateCreateInfo rasterizer          = {}; //
-    VkPipelineMultisampleStateCreateInfo multisampling         = {}; ///
+    VkPipelineLayout pipeline_layout = nullptr;
+
+    Inherited& set_pipeline_layout(VkPipelineLayout layout)
+    {
+        pipeline_layout = layout;
+
+        return *reinterpret_cast<Inherited*>(this);
+    }
+
+    Inherited& add_shader_stage(VkShaderStageFlagBits stage, VkShaderModule shader_module)
+    {
+        shader_stages.push_back(VkPipelineShaderStageCreateInfo{
+            .sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+            .stage  = stage,
+            .module = shader_module,
+            .pName  = "main",
+        });
+
+        return *reinterpret_cast<Inherited*>(this);
+    }
+};
+
+class ComputePipelineBuilder : public PipelineBuilderBase<ComputePipelineBuilder>
+{
+public:
+    std::optional<VkPipeline> build(Core* core);
+};
+
+class GraphicsPipelineBuilder : public PipelineBuilderBase<GraphicsPipelineBuilder>
+{
+public:
+    VkPipelineDepthStencilStateCreateInfo depth_stencil                     = {}; //
+    VkPipelineVertexInputStateCreateInfo vertex_input_info                  = {}; //
+    VkPipelineInputAssemblyStateCreateInfo input_assembly                   = {}; //
+    VkPipelineRasterizationStateCreateInfo rasterizer                       = {}; //
+    VkPipelineMultisampleStateCreateInfo multisampling                      = {}; ///
     std::vector<VkPipelineColorBlendAttachmentState> color_blend_attachment = {};
 
-    PipelineBuilder();
+    GraphicsPipelineBuilder();
 
-    void add_shader_stage(VkShaderStageFlagBits stage, VkShaderModule shader_module);
     void set_topology(VkPrimitiveTopology topology);
     void set_rasterization(VkPolygonMode polygon_mode, VkCullModeFlagBits cull_mode);
     void set_depth_testing(bool depth_testing);
@@ -84,6 +114,8 @@ private:
 
     void _set_vertex_input();
 };
+
+using PipelineBuilder = GraphicsPipelineBuilder;
 
 namespace imp
 {

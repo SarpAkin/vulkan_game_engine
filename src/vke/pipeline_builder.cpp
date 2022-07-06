@@ -28,7 +28,36 @@ VkPipelineLayout PipelineLayoutBuilder::build(VkDevice device)
     return layout;
 }
 
-PipelineBuilder::PipelineBuilder()
+std::optional<VkPipeline> ComputePipelineBuilder::build(Core* core)
+{
+
+    auto cleanup = [&] {
+        for (auto& module : shader_stages)
+            vkDestroyShaderModule(core->device(), module.module, nullptr);
+    };
+
+    assert(shader_stages.size() == 1);
+
+    VkComputePipelineCreateInfo pipeline_info{
+        .sType  = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
+        .stage  = shader_stages[0],
+        .layout = pipeline_layout,
+    };
+
+    VkPipeline new_pipeline;
+    if (vkCreateComputePipelines(core->device(), core->pipeline_cache(), 1, &pipeline_info, nullptr, &new_pipeline) != VK_SUCCESS)
+    {
+        cleanup();
+        return std::nullopt; // failed to create graphics pipeline
+    }
+    else
+    {
+        cleanup();
+        return new_pipeline;
+    }
+}
+
+GraphicsPipelineBuilder::GraphicsPipelineBuilder()
 {
     multisampling = {
         .sType                = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
@@ -50,17 +79,9 @@ PipelineBuilder::PipelineBuilder()
     set_depth_testing(false);
 }
 
-void PipelineBuilder::add_shader_stage(VkShaderStageFlagBits stage, VkShaderModule module)
-{
-    shader_stages.push_back(VkPipelineShaderStageCreateInfo{
-        .sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-        .stage  = stage,
-        .module = module,
-        .pName  = "main",
-    });
-}
 
-void PipelineBuilder::set_topology(VkPrimitiveTopology topology)
+
+void GraphicsPipelineBuilder::set_topology(VkPrimitiveTopology topology)
 {
     input_assembly = {
         .sType    = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
@@ -68,7 +89,7 @@ void PipelineBuilder::set_topology(VkPrimitiveTopology topology)
     };
 }
 
-void PipelineBuilder::set_rasterization(VkPolygonMode polygon_mode, VkCullModeFlagBits cull_mode)
+void GraphicsPipelineBuilder::set_rasterization(VkPolygonMode polygon_mode, VkCullModeFlagBits cull_mode)
 {
     rasterizer = {
         .sType       = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
@@ -79,7 +100,7 @@ void PipelineBuilder::set_rasterization(VkPolygonMode polygon_mode, VkCullModeFl
     };
 }
 
-void PipelineBuilder::set_depth_testing(bool depth_testing)
+void GraphicsPipelineBuilder::set_depth_testing(bool depth_testing)
 {
     depth_stencil = {
         .sType            = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
@@ -89,7 +110,7 @@ void PipelineBuilder::set_depth_testing(bool depth_testing)
     };
 }
 
-std::optional<VkPipeline> PipelineBuilder::build(Core* core, RenderPass* renderpass, uint32_t subpass_index)
+std::optional<VkPipeline> GraphicsPipelineBuilder::build(Core* core, RenderPass* renderpass, uint32_t subpass_index)
 {
     assert(core && renderpass);
 
@@ -173,7 +194,7 @@ std::optional<VkPipeline> PipelineBuilder::build(Core* core, RenderPass* renderp
     }
 }
 
-void PipelineBuilder::_set_vertex_input()
+void GraphicsPipelineBuilder::_set_vertex_input()
 {
     vertex_input_info = m_vertex_input->get_info();
 }

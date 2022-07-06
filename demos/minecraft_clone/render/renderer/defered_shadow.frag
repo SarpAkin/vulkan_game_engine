@@ -32,7 +32,7 @@ uint calc_cascade_layer(float ldepth){
 		if(ldepth < scene.cascade_ends[i]) return i;
 	}
 
-	return 0;
+	return N_CASCADES;
 }
 
 float get_shadow_value(vec4 world_pos,vec3 normal,float ldepth)

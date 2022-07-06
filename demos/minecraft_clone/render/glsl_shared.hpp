@@ -157,5 +157,5 @@ INLINE Frustrum frustrum_from_projection(mat4 inv_proj)
 
 #endif
 
-#undef INLINE
+
 #endif

@@ -208,7 +208,7 @@ inline void append_mesh_from_groups(Group* group_start, Group* group_end, Quad*&
     quad_it_ = quad_it;
 }
 
-//function table to get rid of branches
+// function table to get rid of branches
 void (*group_mesh_table[])(Group*, Group*, Quad*&, Quad*, size_t) = {
     +[](Group* group_start, Group* group_end, Quad*& quad_it_, Quad* quad_buf_end, size_t plane_index) { append_mesh_from_groups<TileFacing::xp>(group_start, group_end, quad_it_, quad_buf_end, plane_index); },
     +[](Group* group_start, Group* group_end, Quad*& quad_it_, Quad* quad_buf_end, size_t plane_index) { append_mesh_from_groups<TileFacing::xn>(group_start, group_end, quad_it_, quad_buf_end, plane_index); },
@@ -223,7 +223,7 @@ void mesh_plane(const TextureID* plane, TileFacing dir, uint32_t layer, Quad*& q
     Group group_buffers[2][Chunk::chunk_size];
 
     auto append_mesh = group_mesh_table[(int)dir];
-    
+
     struct
     {
         Group* buffer;
@@ -308,7 +308,7 @@ void mesh_plane(const TextureID* plane, TileFacing dir, uint32_t layer, Quad*& q
             current_vec.push(current);
         }
 
-        //append to mesh
+        // append to mesh
 
         append_mesh(prev_vec.buffer, prev_vec.top, quad_it, quad_buf_end, layer);
 
@@ -326,21 +326,32 @@ bool mesh_vertical_chunk(const Chunk* chunk, size_t vertical_index, Quad*& quad_
 {
     // BENCHMARK_FUNCTION();
 
-    if (chunk->get_tile_array(vertical_index) == nullptr) return false;
+    Quad* quad_buf_start = quad_buf_it;
 
-    TextureID plane_buf[Chunk::chunk_surface_area];
+    // try
+    // {
+        if (chunk->get_tile_array(vertical_index) == nullptr) return false;
 
-    for (int dir = 0; dir < 6; dir += 2)
-    {
-        for (int i = 0; i < Chunk::chunk_size; ++i)
+        TextureID plane_buf[Chunk::chunk_surface_area];
+
+        for (int dir = 0; dir < 6; dir += 2)
         {
-            if (create_plane(plane_buf, chunk, vertical_index, i, tile_texture_table, (TileFacing)dir))
-                mesh_plane(plane_buf, (TileFacing)dir, i, quad_buf_it, quad_buf_end);
+            for (int i = 0; i < Chunk::chunk_size; ++i)
+            {
+                if (create_plane(plane_buf, chunk, vertical_index, i, tile_texture_table, (TileFacing)dir))
+                    mesh_plane(plane_buf, (TileFacing)dir, i, quad_buf_it, quad_buf_end);
 
-            if (create_plane(plane_buf, chunk, vertical_index, i, tile_texture_table, (TileFacing)(dir + 1)))
-                mesh_plane(plane_buf, (TileFacing)(dir + 1), i, quad_buf_it, quad_buf_end);
+                if (create_plane(plane_buf, chunk, vertical_index, i, tile_texture_table, (TileFacing)(dir + 1)))
+                    mesh_plane(plane_buf, (TileFacing)(dir + 1), i, quad_buf_it, quad_buf_end);
+            }
         }
-    }
+    // }
+    // catch (std::exception& ex)
+    // {
+    //     fmt::print(stderr, "chunk meshing failed due to: {}\n", ex.what());
+    //     quad_buf_it = quad_buf_start;
+    //     return false;
+    // }
 
     return true;
 }

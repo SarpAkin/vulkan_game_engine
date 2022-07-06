@@ -1,6 +1,8 @@
 #version 460
 // #include "../glsl_shared.hpp"
 
+#include "chunk_shared.hpp"
+
 layout(location = 0) in uint vertex_data;
 
 //[variant[SHADOW_PASS]]
@@ -15,11 +17,12 @@ layout (push_constant) uniform PushConstants
 {
     mat4 proj_view;
     uint cpos_offset;
+    uint color;
 }push;
 
 layout(std430,set = 1,binding = 0) readonly buffer DrawBuffer
 {
-    vec4 chunk_poses[];
+    uvec2 packed_chunk_poses[];
 } draw_buffer;
 
 vec2 tex_cords[] = {vec2(1.0,0.0),vec2(1.0,1.0),vec2(2.0,1.0)};
@@ -74,9 +77,9 @@ void main()
 
 
     //a block face ranges in -0.5 to 0.5
-    position += vec4(-0.5,-0.5,-0.5,0.0);
+    position.xyz += vec3(-0.5,-0.5,-0.5);
 
-    position.xyz += draw_buffer.chunk_poses[push.cpos_offset + gl_DrawID].xyz;
+    position.xyz += unpack_chunk_pos(draw_buffer.packed_chunk_poses[push.cpos_offset + gl_DrawID]) * 32.0;
 
     gl_Position = push.proj_view * position;
     // gl_Position.y = -gl_Position.y;
